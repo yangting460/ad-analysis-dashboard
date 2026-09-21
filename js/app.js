@@ -245,7 +245,10 @@ function renderLink(){
 
 // ---------- 素材 ----------
 function creativeKey(r){ return r.i||('T:'+r.t); }
-function materialRank(ch,p){
+const M_LBL={ctr:'点击率',acc:'点击人数',mb:'点击购买人数',ord:'订单提交数'};
+function materialRank(ch,p,metric){
+  let m=metric;
+  if(m==='ctr' && ch==='普通广告') m='acc';      // 普通广告无曝光，CTR 不可用
   const M={};
   for(const r of DATA.ads_rows){
     if(r.d<p.s||r.d>p.e||r.g!==PROD||r.t!==ch) continue;
@@ -255,45 +258,72 @@ function materialRank(ch,p){
     o.show+=num(r.show);o.acc+=num(r.acc);o.mb+=num(r.mb);o.ord+=num(r.ord);
   }
   const arr=Object.entries(M).map(([k,v])=>({k,...v,ctr:pct(v.acc,v.show),bu:pct(v.mb,v.acc)}));
-  const shows=arr.map(x=>x.show).sort((a,b)=>a-b), med=shows.length?shows[Math.floor(shows.length/2)]:0;
-  const minShow=Math.max(200,med*0.2);
-  const cand=arr.filter(x=>x.show>=minShow&&x.show>0);
-  cand.sort((a,b)=>(b.ctr||0)-(a.ctr||0));
-  return {top:cand.slice(0,5),bottom:cand.slice(-5).reverse(),minShow:Math.round(minShow)};
+  let cand, keyfn;
+  if(m==='ctr'){
+    const shows=arr.map(x=>x.show).sort((a,b)=>a-b), med=shows.length?shows[Math.floor(shows.length/2)]:0;
+    const minShow=Math.max(200,med*0.2);
+    cand=arr.filter(x=>x.show>=minShow && x.acc>=5);   // 加点击下限，避免小样本虚高
+    keyfn=x=>x.ctr||0;
+  } else if(m==='acc'){ cand=arr; keyfn=x=>x.acc; }
+  else if(m==='mb'){ cand=arr; keyfn=x=>x.mb; }
+  else { cand=arr; keyfn=x=>x.ord; }
+  cand.sort((a,b)=>keyfn(b)-keyfn(a));
+  return {top:cand.slice(0,5), bottom:cand.slice(-5).reverse(), metric:m};
 }
-function matCard(x){ const meta=DATA.ad_creatives[x.i]||{};
+function matCard(x,metric){
+  const meta=DATA.ad_creatives[x.i]||{};
   const img=x.i?`<img src="${x.i}" loading="lazy" onerror="this.style.display='none'">`:'';
+  const val=metric==='ctr'?(x.ctr==null?'—':x.ctr.toFixed(2)+'%'):(metric==='acc'?x.acc:metric==='mb'?x.mb:x.ord);
   return `<div class="mc">${img}<div class="bd"><div class="ti">${(meta.title||'—').slice(0,24)}</div>
-    <div class="row"><span>CTR</span><span class="hi">${x.ctr==null?'—':x.ctr.toFixed(2)+'%'}</span></div>
+    <div class="row"><span>${M_LBL[metric]}</span><span class="hi">${val}</span></div>
     <div class="row"><span>曝光/点击</span><span>${x.show}/${x.acc}</span></div>
     <div class="row"><span>点击购买/订单</span><span>${x.mb}/${x.ord}</span></div></div></div>`; }
 function renderMaterial(){
-  const p=period(curGran(),refDate);
+  const p=period(curGran(),refDate), metric=document.getElementById('matSort').value;
   document.getElementById('prodName4').textContent=PROD;
-  document.getElementById('matSub').textContent=`产品：${PROD} ｜ 本期 ${p.label} ｜ 仅工作日 ｜ TOP 按 CTR 降序 / BOTTOM 升序`;
+  document.getElementById('matSub').textContent=`产品：${PROD} ｜ 本期 ${p.label} ｜ 仅工作日 ｜ 排序依据：${M_LBL[metric]}`;
   let topH='',botH='';
   CH_MAIN.forEach(ch=>{
-    const rk=materialRank(ch,p);
+    const rk=materialRank(ch,p,metric);
     if(!rk.top.length&&!rk.bottom.length) return;
-    topH+=`<div class="sub" style="margin:12px 0 6px;font-weight:600">${ch} · TOP5（曝光阈值≥${rk.minShow}）</div><div class="mcards">${rk.top.map(matCard).join('')||'<span style="color:#999">样本不足</span>'}</div>`;
-    botH+=`<div class="sub" style="margin:12px 0 6px;font-weight:600">${ch} · BOTTOM5（待淘汰）</div><div class="mcards">${rk.bottom.map(matCard).join('')||'<span style="color:#999">样本不足</span>'}</div>`;
+    const used=M_LBL[rk.metric], note=(rk.metric!==metric)?`（该渠道无曝光，改按${used}）`:'';
+    topH+=`<div class="sub" style="margin:12px 0 6px;font-weight:600">${ch} · 高${used}前5${note}</div><div class="mcards">${rk.top.map(x=>matCard(x,rk.metric)).join('')||'<span style="color:#999">样本不足</span>'}</div>`;
+    botH+=`<div class="sub" style="margin:12px 0 6px;font-weight:600">${ch} · 低${used}前5</div><div class="mcards">${rk.bottom.map(x=>matCard(x,rk.metric)).join('')||'<span style="color:#999">样本不足</span>'}</div>`;
   });
   document.getElementById('matTop').innerHTML=topH||'<span style="color:#999">该期无足够素材数据</span>';
   document.getElementById('matBottom').innerHTML=botH;
 }
 
 // ---------- 活动/规律 + 企微素材 ----------
+function renderQiList(key,elId,p){
+  const arr=((DATA.qiwei_materials||{})[key]||[]).filter(x=>x[0]>=p.s&&x[0]<=p.e);
+  const el=document.getElementById(elId);
+  if(!arr.length){ el.innerHTML='<span style="color:#999">本期无素材</span>'; return; }
+  const s=[...arr].sort((a,b)=>b[1]-a[1]);
+  const top=s.slice(0,3), bot=s.slice(-3).reverse();
+  const li=(x,cls)=>`<div style="display:flex;gap:6px;font-size:12px;padding:3px 0;border-bottom:1px solid #f2f3f5">
+      <span style="color:${cls};font-weight:700;min-width:34px">${x[1]}次</span>
+      <span style="color:#888;min-width:44px">${x[0].slice(5)}</span>
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(x[2]||'').replace(/"/g,'')}">${x[2]||'—'}</span></div>`;
+  el.innerHTML=`<div style="font-size:11px;color:#a01526;margin:2px 0">引用次数 TOP3</div>`+top.map(x=>li(x,RED)).join('')
+    +`<div style="font-size:11px;color:#187a2e;margin:6px 0 2px">引用次数 BOTTOM3</div>`+bot.map(x=>li(x,GREEN)).join('');
+}
 function renderEvent(){
   const p=period(curGran(),refDate), ym=p.s.slice(0,7);
   // 企微素材（两个栏目）
-  document.getElementById('qiSub').textContent=`本期 ${p.label}（含环比）｜ 栏目：升级高端版 / 选股王 ｜ 创建人：杨婷`;
+  document.getElementById('qiSub').textContent=`本期 ${p.label}（${p.days}天）｜ 栏目：升级高端版 / 选股王 ｜ 创建人：杨婷`;
   const qxk=qiSum(p.s,p.e,'xk'), qxg=qiSum(p.s,p.e,'xg');
   const qxkp=qiSum(p.ps,p.pe,'xk'), qxgp=qiSum(p.ps,p.pe,'xg');
-  let qh='<table><tr><th class="l">栏目</th><th>本期新增素材</th><th>环比</th><th>本期使用次数</th><th>环比</th></tr>';
-  qh+=`<tr><td class="l">升级高端版（新开升级）</td><td>${qxk.n}</td><td style="color:${diffColor(qxk.n-qxkp.n)}">${dfmt(qxk.n-qxkp.n,false)}</td><td>${qxk.use}</td><td style="color:${diffColor(qxk.use-qxkp.use)}">${dfmt(qxk.use-qxkp.use,false)}</td></tr>`;
-  qh+=`<tr><td class="l">选股王</td><td>${qxg.n}</td><td style="color:${diffColor(qxg.n-qxgp.n)}">${dfmt(qxg.n-qxgp.n,false)}</td><td>${qxg.use}</td><td style="color:${diffColor(qxg.use-qxgp.use)}">${dfmt(qxg.use-qxgp.use,false)}</td></tr>`;
+  const dAvg=(u,dd)=>(u/dd).toFixed(1);
+  const qrow=(name,c,cp)=>`<tr><td class="l">${name}</td><td>${c.n}</td><td>${c.use}</td><td>${dAvg(c.use,p.days)}</td>
+     <td style="color:${diffColor(c.n-cp.n)}">${dfmt(c.n-cp.n,false)}</td>
+     <td style="color:${diffColor(c.use-cp.use)}">${dfmt(c.use-cp.use,false)}</td></tr>`;
+  let qh='<table><tr><th class="l">栏目</th><th>新增素材</th><th>引用次数</th><th>日均引用次数</th><th>新增环比</th><th>引用环比</th></tr>';
+  qh+=qrow('升级高端版（新开升级）', qxk, qxkp);
+  qh+=qrow('选股王', qxg, qxgp);
   qh+='</table>';
   document.getElementById('qiTable').innerHTML=qh;
+  renderQiList('xk','qiXkList',p); renderQiList('xg','qiXgList',p);
   // 企微每日新增（近30天）
   const days=[]; for(let i=29;i>=0;i--){ days.push(fmtD(addD(refDate,-i))); }
   const qxkD=days.map(d=>((DATA.qiwei_daily||{})[d]||{}).xk?DATA.qiwei_daily[d].xk.n:0);
@@ -336,6 +366,7 @@ function init(){
     renderAll();
   });
   document.getElementById('gran').onchange=renderAll;
+  document.getElementById('matSort').onchange=renderMaterial;
   document.getElementById('refDate').onchange=()=>{ refDate=parseD(document.getElementById('refDate').value); renderAll(); };
 }
 fetch('data/dashboard.json').then(r=>r.json()).then(d=>{

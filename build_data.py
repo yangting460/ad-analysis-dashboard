@@ -205,6 +205,7 @@ def refresh_qiwei():
     os.makedirs(QI_DIR, exist_ok=True)
     force = "--force" in sys.argv
     out = {}   # date -> {xk:{n,use}, xg:{n,use}}  xk=升级高端版, xg=选股王
+    mats = {"xk": [], "xg": []}   # 素材明细 [date, use, title]
     miss = 0
     for name, sid in QI_SORT.items():
         fp = os.path.join(QI_DIR, "%s.json" % name)
@@ -238,14 +239,18 @@ def refresh_qiwei():
             dd = (d.get("created_at") or "")[:10]
             if not dd:
                 continue
+            try:
+                uc = int(d.get("use_count") or 0)
+            except (TypeError, ValueError):
+                uc = 0
             o = out.setdefault(dd, {}).setdefault(key, {"n": 0, "use": 0})
             o["n"] += 1
-            try:
-                o["use"] += int(d.get("use_count") or 0)
-            except (TypeError, ValueError):
-                pass
-    print("  企微素材入库: 天数=%d | 缺失=%d" % (len(out), miss))
-    return out
+            o["use"] += uc
+            title = (d.get("content") or "").replace("\n", " ").strip()[:40]
+            mats[key].append([dd, uc, title])
+    print("  企微素材入库: 天数=%d | 明细 xk=%d xg=%d | 缺失=%d"
+          % (len(out), len(mats["xk"]), len(mats["xg"]), miss))
+    return out, mats
 
 
 # ---------------- 彩蛋 ----------------
@@ -366,12 +371,16 @@ def main():
 
     if do_qi:
         print("== 企微素材拉取 ==")
-        qi = refresh_qiwei()
-        json.dump(qi, open(QI_CACHE, "w", encoding="utf-8"), ensure_ascii=False)
+        qi, qi_mats = refresh_qiwei()
+        json.dump({"daily": qi, "materials": qi_mats}, open(QI_CACHE, "w", encoding="utf-8"), ensure_ascii=False)
     elif os.path.exists(QI_CACHE):
-        qi = json.load(open(QI_CACHE, encoding="utf-8"))
+        c = json.load(open(QI_CACHE, encoding="utf-8"))
+        if "daily" in c:
+            qi, qi_mats = c["daily"], c.get("materials", {"xk": [], "xg": []})
+        else:
+            qi, qi_mats = c, {"xk": [], "xg": []}
     else:
-        qi = {}
+        qi, qi_mats = {}, {"xk": [], "xg": []}
 
     # 单量按天（含两年）取并集日期
     out = {
@@ -387,6 +396,7 @@ def main():
         "ad_creatives": creatives,
         "ads_rows": ads_rows,
         "qiwei_daily": qi,
+        "qiwei_materials": qi_mats,
         "caidan": build_caidan(
             {d: Counter({"新开升级": v["xk"], "选股王": v["xg"]}) for d, v in bi55_daily.items() if d < "2026-01-01"},
             {d: Counter({"新开升级": v["xk"], "选股王": v["xg"]}) for d, v in bi55_daily.items() if d >= "2026-01-01"},

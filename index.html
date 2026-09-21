@@ -123,7 +123,16 @@
   </section>
 
   <section id="tab-material">
-    <div class="card"><h2>各渠道素材 TOP5 / BOTTOM5 · <span class="prodName" id="prodName4"></span>（阶段内 · 仅工作日 · 按点击率）</h2>
+    <div class="card"><h2>各渠道素材 · <span class="prodName" id="prodName4"></span>（阶段内 · 仅工作日）</h2>
+      <div style="margin-bottom:8px;font-size:13px">排序依据：
+        <select id="matSort">
+          <option value="ctr">点击率 CTR</option>
+          <option value="acc">点击人数</option>
+          <option value="mb">点击购买人数</option>
+          <option value="ord">订单提交数</option>
+        </select>
+        <span style="color:#999;font-size:12px;margin-left:8px">（普通广告无曝光，自动改按点击人数）</span>
+      </div>
       <div class="sub" id="matSub"></div>
       <div id="matTop"></div>
       <div style="height:14px"></div>
@@ -132,7 +141,15 @@
   </section>
 
   <section id="tab-event">
-    <div class="card"><h2>企微素材（杨婷 · 选股王 / 升级高端版）</h2><div class="sub" id="qiSub"></div><div id="qiTable"></div><div id="qiChart" style="height:260px;margin-top:10px"></div></div>
+    <div class="card"><h2>企微素材（杨婷 · 升级高端版 / 选股王）</h2>
+      <div class="sub" id="qiSub"></div>
+      <div id="qiTable"></div>
+      <div class="grid2" style="margin-top:12px">
+        <div><div class="sub" style="font-weight:600">升级高端版 · 引用次数 TOP3 / BOTTOM3</div><div id="qiXkList"></div></div>
+        <div><div class="sub" style="font-weight:600">选股王 · 引用次数 TOP3 / BOTTOM3</div><div id="qiXgList"></div></div>
+      </div>
+      <div id="qiChart" style="height:260px;margin-top:10px"></div>
+    </div>
     <div class="card"><h2>彩蛋活动专项</h2><div id="caidanTable"></div></div>
     <div class="card"><h2>彩蛋分布</h2><div id="caidanChart" style="height:280px"></div></div>
     <div class="card"><h2>周末 / 工作日规律 · 异常预警</h2><div id="pattern"></div></div>
