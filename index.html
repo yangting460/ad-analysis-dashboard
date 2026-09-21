@@ -8,13 +8,18 @@
 <style>
   * { box-sizing: border-box; }
   body { margin:0; font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif; color:#222; background:#f5f6f8; }
-  header { background:#fff; padding:12px 18px; border-bottom:1px solid #e6e8ec; position:sticky; top:0; z-index:20; }
-  h1 { font-size:17px; margin:0 0 4px; }
-  #meta { font-size:11px; color:#888; margin-bottom:8px; }
-  .controls { display:flex; flex-wrap:wrap; gap:14px; align-items:center; font-size:13px; }
+  .top { position:sticky; top:0; z-index:20; background:#fff; border-bottom:1px solid #e6e8ec; }
+  header { padding:10px 18px 6px; }
+  h1 { font-size:16px; margin:0 0 3px; }
+  #meta { font-size:11px; color:#888; }
+  .controls { display:flex; flex-wrap:wrap; gap:14px; align-items:center; font-size:13px; padding:6px 18px 8px; }
   .controls label { color:#555; }
   select, input[type=date] { font-size:13px; padding:3px 6px; border:1px solid #cfd4dc; border-radius:5px; background:#fff; }
-  nav.tabs { display:flex; gap:4px; background:#fff; padding:0 12px; border-bottom:1px solid #e6e8ec; position:sticky; top:96px; z-index:19; overflow-x:auto; }
+  #prodBar { display:flex; align-items:center; gap:10px; padding:10px 18px; background:#fff7f8; border-top:1px solid #f2d7dc; border-bottom:1px solid #f2d7dc; }
+  #prodBar .pb-label { font-weight:700; color:#a01526; font-size:15px; margin-right:6px; }
+  #prodBar .pb { font-size:16px; font-weight:700; padding:8px 22px; border-radius:8px; border:2px solid #d9dde3; background:#fff; color:#555; cursor:pointer; }
+  #prodBar .pb.on { border-color:#E60025; background:#E60025; color:#fff; box-shadow:0 2px 8px rgba(230,0,37,.3); }
+  nav.tabs { display:flex; gap:4px; padding:0 12px; overflow-x:auto; }
   nav.tabs button { border:0; background:none; padding:10px 14px; font-size:14px; color:#666; cursor:pointer; border-bottom:2px solid transparent; white-space:nowrap; }
   nav.tabs button.on { color:#E60025; border-bottom-color:#E60025; font-weight:600; }
   main { padding:16px; max-width:1400px; margin:0 auto; }
@@ -28,7 +33,7 @@
   th,td { border:1px solid #eceef2; padding:5px 8px; text-align:center; }
   th { background:#fafbfc; color:#555; font-weight:600; }
   td.l, th.l { text-align:left; }
-  .kpis { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+  .kpis { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:16px; }
   @media (max-width:800px){ .kpis{ grid-template-columns:repeat(2,1fr);} }
   .kpi { background:#fff; border:1px solid #e6e8ec; border-radius:8px; padding:12px; }
   .kpi .t { font-size:12px; color:#888; }
@@ -46,12 +51,20 @@
   .bar { height:8px; background:#eee; border-radius:4px; overflow:hidden; margin-top:4px; }
   .bar > i { display:block; height:100%; background:#E60025; }
   .sub { font-size:12px; color:#777; margin-bottom:6px; }
+  .prodName { color:#E60025; }
 </style>
 </head>
 <body>
-<header>
-  <h1>选股王 / 高端版 · 广告 × 成交 分析面板</h1>
-  <div id="meta">加载中…</div>
+<div class="top">
+  <header>
+    <h1>广告 × 成交 分析面板</h1>
+    <div id="meta">加载中…</div>
+  </header>
+  <div id="prodBar">
+    <span class="pb-label">先明确产品</span>
+    <button class="pb on" data-p="新开升级">新开升级（高端版）</button>
+    <button class="pb" data-p="选股王">选股王</button>
+  </div>
   <div class="controls">
     <label>粒度
       <select id="gran">
@@ -63,32 +76,36 @@
       </select>
     </label>
     <label>基准日 <input type="date" id="refDate"></label>
-    <label>分组
-      <select id="grp"><option>全部</option><option>选股王</option><option>新开升级</option></select>
-    </label>
     <span id="periodLabel" style="color:#888"></span>
   </div>
-</header>
-
-<nav class="tabs" id="tabs">
-  <button data-t="amount" class="on">单量</button>
-  <button data-t="ad">广告</button>
-  <button data-t="link">跳转链接</button>
-  <button data-t="material">素材</button>
-  <button data-t="event">活动/规律</button>
-</nav>
+  <nav class="tabs" id="tabs">
+    <button data-t="home" class="on">首页</button>
+    <button data-t="amount">单量</button>
+    <button data-t="ad">广告</button>
+    <button data-t="link">跳转链接</button>
+    <button data-t="material">素材</button>
+    <button data-t="event">活动/规律</button>
+  </nav>
+</div>
 
 <main>
-  <section id="tab-amount" class="on">
-    <div class="card"><h2>核心 KPI（本期 / 环比 / 同比）</h2><div class="kpis" id="kpis"></div></div>
+  <section id="tab-home" class="on">
+    <div class="sub" id="homeSub" style="font-size:13px;color:#555;margin-bottom:8px"></div>
+    <div class="kpis" id="homeKpis"></div>
+    <div class="card"><h2>本周 vs 上周 · 明细</h2><div id="homeTable"></div></div>
     <div class="grid2">
-      <div class="card"><h2>新开升级 · 单量趋势（按当前粒度）</h2><div id="amtTrendXk" style="height:280px"></div></div>
-      <div class="card"><h2>选股王 · 单量趋势（按当前粒度）</h2><div id="amtTrendXg" style="height:280px"></div></div>
+      <div class="card"><h2>单量趋势（近 12 周）</h2><div id="homeAmtTrend" style="height:250px"></div></div>
+      <div class="card"><h2>各渠道 本周点击 / CTR</h2><div id="homeAdChart" style="height:250px"></div></div>
     </div>
+  </section>
+
+  <section id="tab-amount">
+    <div class="card"><h2>核心 KPI · <span class="prodName" id="prodName1"></span></h2><div class="kpis" id="kpis"></div></div>
     <div class="grid2">
       <div class="card"><h2>环比：本期 vs 环比期</h2><div id="amtMom" style="height:280px"></div></div>
       <div class="card"><h2>同比：本期 vs 同比期</h2><div id="amtYoy" style="height:280px"></div></div>
     </div>
+    <div class="card"><h2>单量趋势（按当前粒度）</h2><div id="amtTrend" style="height:280px"></div></div>
     <div class="grid2">
       <div class="card"><h2>端分布（本期）</h2><div id="devChart" style="height:280px"></div></div>
       <div class="card"><h2>目标达成</h2><div id="targets"></div></div>
@@ -96,17 +113,17 @@
   </section>
 
   <section id="tab-ad">
-    <div class="card"><h2>分组 × 渠道 环比总表（变化数值，红涨绿跌）</h2><div class="sub" id="adSub"></div><div id="adTable"></div></div>
+    <div class="card"><h2>渠道 环比总表 · <span class="prodName" id="prodName2"></span>（变化数值，红涨绿跌）</h2><div class="sub" id="adSub"></div><div id="adTable"></div></div>
     <div id="adChannels"></div>
   </section>
 
   <section id="tab-link">
-    <div class="card"><h2>跳转链接（落地页）效果 · 按点击购买率排序</h2><div class="sub" id="linkSub"></div><div id="linkChart" style="height:340px"></div></div>
+    <div class="card"><h2>跳转链接（落地页）效果 · <span class="prodName" id="prodName3"></span> · 按点击购买率排序</h2><div class="sub" id="linkSub"></div><div id="linkChart" style="height:340px"></div></div>
     <div class="card"><h2>链接明细与问题识别</h2><div id="linkTable"></div></div>
   </section>
 
   <section id="tab-material">
-    <div class="card"><h2>各渠道素材 TOP5 / BOTTOM5（阶段内 · 仅工作日 · 按点击率）</h2>
+    <div class="card"><h2>各渠道素材 TOP5 / BOTTOM5 · <span class="prodName" id="prodName4"></span>（阶段内 · 仅工作日 · 按点击率）</h2>
       <div class="sub" id="matSub"></div>
       <div id="matTop"></div>
       <div style="height:14px"></div>
@@ -115,6 +132,7 @@
   </section>
 
   <section id="tab-event">
+    <div class="card"><h2>企微素材（杨婷 · 选股王 / 升级高端版）</h2><div class="sub" id="qiSub"></div><div id="qiTable"></div><div id="qiChart" style="height:260px;margin-top:10px"></div></div>
     <div class="card"><h2>彩蛋活动专项</h2><div id="caidanTable"></div></div>
     <div class="card"><h2>彩蛋分布</h2><div id="caidanChart" style="height:280px"></div></div>
     <div class="card"><h2>周末 / 工作日规律 · 异常预警</h2><div id="pattern"></div></div>

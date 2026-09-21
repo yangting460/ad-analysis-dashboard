@@ -29,6 +29,10 @@ OUT = os.path.join(HERE, "data", "dashboard.json")
 TARGETS_FILE = os.path.join(HERE, "targets.json")
 PCID_FILE = os.path.join(SRC, "pcid_dims.json")
 RAW_DIR = os.path.join(SRC, "ads_raw")
+QI_DIR = os.path.join(SRC, "qiwei_raw")
+QI_BASE = "https://gw.n8n8.cn/enterprisewechatAssistant/api/enterprisewechat/manage"
+QI_SORT = {"升级高端版": 1, "选股王": 4}  # 栏目 sort_id；升级高端版=新开升级
+QI_CREATOR = "杨婷"
 BI_TOKEN = open(r"D:/新建文件夹/workbuddy/工作PPT/后台导出/_token.txt", encoding="utf-8").read().strip()
 AD_TOKEN = open(r"C:/Users/admin/zt_token.txt", encoding="utf-8").read().strip()
 
@@ -188,6 +192,62 @@ def refresh_ads(st, en):
     return ads, creatives, ads_rows, missing
 
 
+# ---------------- 企微素材（运营后台·企业微信·素材管理）----------------
+def qi_cate(params):
+    url = QI_BASE + "/material/list?" + urlencode(params)
+    req = urllib.request.Request(url, headers={
+        "Authorization": "Bearer " + AD_TOKEN, "Origin": "https://zt.jingzhuan.cn",
+        "Referer": "https://zt.jingzhuan.cn/", "Accept": "application/json"})
+    return json.loads(urllib.request.urlopen(req, timeout=60).read().decode())
+
+
+def refresh_qiwei():
+    os.makedirs(QI_DIR, exist_ok=True)
+    force = "--force" in sys.argv
+    out = {}   # date -> {xk:{n,use}, xg:{n,use}}  xk=升级高端版, xg=选股王
+    miss = 0
+    for name, sid in QI_SORT.items():
+        fp = os.path.join(QI_DIR, "%s.json" % name)
+        if os.path.exists(fp) and not force:
+            rows = json.load(open(fp, encoding="utf-8"))
+            print("  [cached] 企微-%s 行%d" % (name, len(rows)))
+        else:
+            rows, page = [], 1
+            try:
+                while True:
+                    r = qi_cate({"page": page, "limit": 100, "sort_id": sid})
+                    if not r.get("response"):
+                        print("  !企微-%s 异常: %s" % (name, r.get("msg")))
+                        break
+                    dl = r["response"]["data"]
+                    rows.extend(dl)
+                    if len(dl) < 100:
+                        break
+                    page += 1
+                    time.sleep(0.05)
+            except Exception as e:
+                print("  !企微-%s 拉取失败: %s（重跑续传）" % (name, e))
+                miss += 1
+                continue
+            json.dump(rows, open(fp, "w", encoding="utf-8"), ensure_ascii=False)
+            print("  企微-%s 行%d (saved)" % (name, len(rows)))
+        key = "xg" if name == "选股王" else "xk"
+        for d in rows:
+            if d.get("creator_name") != QI_CREATOR:
+                continue
+            dd = (d.get("created_at") or "")[:10]
+            if not dd:
+                continue
+            o = out.setdefault(dd, {}).setdefault(key, {"n": 0, "use": 0})
+            o["n"] += 1
+            try:
+                o["use"] += int(d.get("use_count") or 0)
+            except (TypeError, ValueError):
+                pass
+    print("  企微素材入库: 天数=%d | 缺失=%d" % (len(out), miss))
+    return out
+
+
 # ---------------- 彩蛋 ----------------
 def count(by, sd, ed):
     c = Counter()
@@ -259,7 +319,7 @@ def load_targets():
 
 # ---------------- 主流程 ----------------
 def main():
-    refresh = "--refresh" in sys.argv
+    refresh = ("--refresh" in sys.argv) or ("--qiwei" in sys.argv) or ("--ads" in sys.argv)
     today = date.today()
     ymax = today.isoformat()
 
@@ -286,25 +346,37 @@ def main():
     ads_st = "%d-%02d-01 00:00" % (sy, sm)
     ads_en = today.strftime("%Y-%m-%d") + " 23:59"
 
-    if refresh:
+    do_ads = refresh and ("--qiwei" not in sys.argv)
+    do_qi = refresh and ("--ads" not in sys.argv)
+    ADS_CACHE = os.path.join(SRC, "ads_cache.json")
+    QI_CACHE = os.path.join(SRC, "qiwei_cache.json")
+
+    if do_ads:
         print("== banner-stat 真实拉取（%s ~ %s）==" % (ads_st, ads_en))
         ads, creatives, ads_rows, missing = refresh_ads(ads_st, ads_en)
         json.dump({"ads_daily": ads, "ad_creatives": creatives, "ads_rows": ads_rows},
-                  open(os.path.join(SRC, "ads_cache.json"), "w", encoding="utf-8"), ensure_ascii=False)
+                  open(ADS_CACHE, "w", encoding="utf-8"), ensure_ascii=False)
+    elif os.path.exists(ADS_CACHE):
+        print("== 载入 banner-stat 缓存 ==")
+        c = json.load(open(ADS_CACHE, encoding="utf-8"))
+        ads, creatives, ads_rows = c["ads_daily"], c["ad_creatives"], c["ads_rows"]
     else:
-        cache = os.path.join(SRC, "ads_cache.json")
-        if os.path.exists(cache):
-            print("== 载入 banner-stat 缓存 ==")
-            c = json.load(open(cache, encoding="utf-8"))
-            ads, creatives, ads_rows = c["ads_daily"], c["ad_creatives"], c["ads_rows"]
-        else:
-            print("== 无广告缓存，跑 --refresh 生成 ==")
-            ads, creatives, ads_rows = {}, {}, []
+        print("== 无广告缓存 ==")
+        ads, creatives, ads_rows = {}, {}, []
+
+    if do_qi:
+        print("== 企微素材拉取 ==")
+        qi = refresh_qiwei()
+        json.dump(qi, open(QI_CACHE, "w", encoding="utf-8"), ensure_ascii=False)
+    elif os.path.exists(QI_CACHE):
+        qi = json.load(open(QI_CACHE, encoding="utf-8"))
+    else:
+        qi = {}
 
     # 单量按天（含两年）取并集日期
     out = {
         "updated": ymax,
-        "source": "BI报表55(问题ID898) + 广告后台banner-stat",
+        "source": "BI报表55(问题ID898) + 广告后台banner-stat + 企微素材管理",
         "note": "CTR=点击用户/曝光用户；点击购买率=点击购买用户/点击用户；PC弹窗已剔除650×300(小弹窗单列)；普通广告无曝光=无数据；周=周一到周日(可切滚动周)；单量可同比(2025有数据)，广告仅环比",
         "channels": CHANNELS,
         "devices": DEVICES,
@@ -314,6 +386,7 @@ def main():
         "ads_daily": ads,
         "ad_creatives": creatives,
         "ads_rows": ads_rows,
+        "qiwei_daily": qi,
         "caidan": build_caidan(
             {d: Counter({"新开升级": v["xk"], "选股王": v["xg"]}) for d, v in bi55_daily.items() if d < "2026-01-01"},
             {d: Counter({"新开升级": v["xk"], "选股王": v["xg"]}) for d, v in bi55_daily.items() if d >= "2026-01-01"},
