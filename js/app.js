@@ -58,47 +58,52 @@ function opt(id,o){ const el=document.getElementById(id); if(!el) return; if(!ch
 function disposePref(prefix){ Object.keys(charts).forEach(k=>{ if(k.indexOf(prefix)===0){ charts[k].dispose(); delete charts[k]; } }); }
 
 // ---------- 首页 ----------
+const CH_COLOR={'普通广告':'#1A9E8F','APP弹窗广告':'#2C5F8A','APP通知栏推送':'#E08A00','PC弹窗推送':'#7A4FBF','PC小弹窗':'#A98BD6'};
+const CH_NAME={'普通广告':'普通广告','APP弹窗广告':'APP弹窗','APP通知栏推送':'PUSH','PC弹窗推送':'PC弹窗','PC小弹窗':'小弹窗'};
+function homeRowsForCh(ch,p){
+  const a=adsSum(p.s,p.e,ch), b=adsSum(p.ps,p.pe,ch);
+  const out=[['曝光', a.show, b.show, false],['点击人数', a.acc, b.acc, false]];
+  if(a.show||b.show){ out.push(['点击率CTR', (a.show?a.acc/a.show*100:null), (b.show?b.acc/b.show*100:null), true]); }
+  out.push(['点击购买', a.mb, b.mb, false]);
+  return out;
+}
 function renderHome(){
   const p=period('week',refDate), k=pk();
   document.getElementById('homeSub').innerHTML=`产品：<b class="prodName">${PROD}</b> ｜ 本周 <b>${p.label}</b> vs 上周 <b>${p.prevLabel}</b>（固定周·周一~周日）`;
   const c=sumBI55(p.s,p.e), pv=sumBI55(p.ps,p.pe);
+  const q=qiSum(p.s,p.e,k), qp=qiSum(p.ps,p.pe,k);
   const items=[
-    {t:'单量', cur:c[k], prev:pv[k]},
-    {t:'APP弹窗 点击', cur:adsSum(p.s,p.e,'APP弹窗广告').acc, prev:adsSum(p.ps,p.pe,'APP弹窗广告').acc},
-    {t:'PC弹窗 点击', cur:adsSum(p.s,p.e,'PC弹窗推送').acc, prev:adsSum(p.ps,p.pe,'PC弹窗推送').acc},
-    {t:'普通广告 点击', cur:adsSum(p.s,p.e,'普通广告').acc, prev:adsSum(p.ps,p.pe,'普通广告').acc},
-    {t:'PUSH(通知栏) 点击', cur:adsSum(p.s,p.e,'APP通知栏推送').acc, prev:adsSum(p.ps,p.pe,'APP通知栏推送').acc},
-    {t:'企微素材 新增', cur:qiSum(p.s,p.e,k).n, prev:qiSum(p.ps,p.pe,k).n},
+    {t:'单量', cur:c[k], prev:pv[k], color:RED},
+    {t:'APP弹窗 点击', cur:adsSum(p.s,p.e,'APP弹窗广告').acc, prev:adsSum(p.ps,p.pe,'APP弹窗广告').acc, color:CH_COLOR['APP弹窗广告']},
+    {t:'PC弹窗 点击', cur:adsSum(p.s,p.e,'PC弹窗推送').acc, prev:adsSum(p.ps,p.pe,'PC弹窗推送').acc, color:CH_COLOR['PC弹窗推送']},
+    {t:'普通广告 点击', cur:adsSum(p.s,p.e,'普通广告').acc, prev:adsSum(p.ps,p.pe,'普通广告').acc, color:CH_COLOR['普通广告']},
+    {t:'PUSH 点击', cur:adsSum(p.s,p.e,'APP通知栏推送').acc, prev:adsSum(p.ps,p.pe,'APP通知栏推送').acc, color:CH_COLOR['APP通知栏推送']},
+    {t:'企微素材 新增', cur:q.n, prev:qp.n, color:GREEN},
   ];
   document.getElementById('homeKpis').innerHTML=items.map(x=>{
     const d=x.cur-x.prev;
-    return `<div class="kpi"><div class="t">${x.t}</div><div class="v">${x.cur}</div>
+    return `<div class="kpi" style="border-top:3px solid ${x.color}"><div class="t">${x.t}</div><div class="v">${x.cur}</div>
       <div class="d" style="color:${diffColor(d)}">变化 ${dfmt(d,false)} <span style="color:#999">上周 ${x.prev}</span></div></div>`;
   }).join('');
 
-  // 明细表
-  const rows=[];
-  const R=(name,cur,prev,isPct)=>rows.push({name,cur,prev,isPct});
-  R('单量', c[k], pv[k]);
-  [['APP弹窗广告','APP弹窗'],['PC弹窗推送','PC弹窗'],['APP通知栏推送','PUSH']].forEach(([ch,nm])=>{
-    const a=adsSum(p.s,p.e,ch), b=adsSum(p.ps,p.pe,ch);
-    R(nm+' 曝光', a.show, b.show);
-    R(nm+' 点击人数', a.acc, b.acc);
-    R(nm+' 点击率CTR', (a.show?a.acc/a.show*100:null), (b.show?b.acc/b.show*100:null), true);
-    R(nm+' 点击购买', a.mb, b.mb);
-  });
-  const ca=adsSum(p.s,p.e,'普通广告'), cb=adsSum(p.ps,p.pe,'普通广告');
-  R('普通广告 点击人数(无曝光)', ca.acc, cb.acc);
-  R('普通广告 点击购买', ca.mb, cb.mb);
-  const q=qiSum(p.s,p.e,k), qp=qiSum(p.ps,p.pe,k);
-  R('企微素材 新增条数', q.n, qp.n);
-  R('企微素材 使用次数', q.use, qp.use);
+  const groups=[
+    {name:'单量', color:RED, rows:[['单量', c[k], pv[k], false]]},
+    {name:'APP弹窗', color:CH_COLOR['APP弹窗广告'], rows:homeRowsForCh('APP弹窗广告',p)},
+    {name:'PC弹窗（含小弹窗）', color:CH_COLOR['PC弹窗推送'], rows:homeRowsForCh('PC弹窗推送',p)},
+    {name:'PUSH（APP通知栏推送）', color:CH_COLOR['APP通知栏推送'], rows:homeRowsForCh('APP通知栏推送',p)},
+    {name:'普通广告（无曝光）', color:CH_COLOR['普通广告'], rows:homeRowsForCh('普通广告',p)},
+    {name:'企微素材（杨婷）', color:GREEN, rows:[['新增条数', q.n, qp.n, false],['使用次数', q.use, qp.use, false]]},
+  ];
   let h='<table><tr><th class="l">指标</th><th>本周</th><th>上周</th><th>变化</th></tr>';
-  rows.forEach(x=>{
-    const isP=x.isPct, val=v=>v==null?'无数据':(isP?v.toFixed(2)+'%':v);
-    const d=(x.cur!=null&&x.prev!=null)?x.cur-x.prev:null;
-    h+=`<tr><td class="l">${x.name}</td><td>${val(x.cur)}</td><td>${val(x.prev)}</td>
-      <td style="color:${diffColor(d==null?0:d)};font-weight:600">${dfmt(d,isP)}</td></tr>`;
+  groups.forEach(g=>{
+    h+=`<tr><td colspan="4" class="l" style="background:${g.color}18;color:${g.color};font-weight:700;border-left:6px solid ${g.color}">${g.name}</td></tr>`;
+    g.rows.forEach(r=>{
+      const nm=r[0], cur=r[1], prev=r[2], isP=r[3];
+      const val=v=>v==null?'无数据':(isP?v.toFixed(2)+'%':v);
+      const d=(cur!=null&&prev!=null)?cur-prev:null;
+      h+=`<tr><td class="l" style="border-left:6px solid ${g.color};padding-left:14px">${nm}</td><td>${val(cur)}</td><td>${val(prev)}</td>`
+        +`<td style="color:${diffColor(d==null?0:d)};font-weight:600">${dfmt(d,isP)}</td></tr>`;
+    });
   });
   h+='</table>';
   document.getElementById('homeTable').innerHTML=h;
@@ -180,7 +185,7 @@ function renderAd(){
   document.getElementById('adSub').textContent=`产品：${PROD} ｜ 本期 ${p.label} vs 上期 ${p.prevLabel}（广告仅环比）`;
   // 总表
   let html='<table><tr><th class="l">渠道</th><th>曝光</th><th>点击人数</th><th>点击率CTR</th><th>点击购买</th><th>购买率</th><th>订单提交</th><th>成交(归因)</th></tr>';
-  CHS.forEach(ch=>{ html+=`<tr><td class="l" ${ch==='PC小弹窗'?'style="color:#999"':''}>${ch}</td>`+adTds(ch)+'</tr>'; });
+  CHS.forEach(ch=>{ const col=CH_COLOR[ch]||'#A98BD6'; html+=`<tr><td class="l" style="border-left:6px solid ${col};color:${col};font-weight:600">${ch}</td>`+adTds(ch)+'</tr>'; });
   html+='</table>';
   document.getElementById('adTable').innerHTML=html;
 
@@ -188,22 +193,24 @@ function renderAd(){
   disposePref('adch-');
   const wrap=document.getElementById('adChannels'); wrap.innerHTML='';
   CH_MAIN.forEach((ch,ci)=>{
-    const card=document.createElement('div'); card.className='card';
+    const col=CH_COLOR[ch]||BLUE;
+    const card=document.createElement('div'); card.className='card'; card.style.borderTop=`3px solid ${col}`;
     let tb='<table><tr><th class="l">项目</th><th>曝光</th><th>点击人数</th><th>点击率CTR</th><th>点击购买</th><th>购买率</th><th>订单提交</th><th>成交(归因)</th></tr>';
-    tb+=`<tr><td class="l">${PROD}</td>`+adTds(ch)+'</tr>';
-    if(ch==='PC弹窗推送') tb+=`<tr><td class="l" style="color:#999">└ 小弹窗 650×300</td>`+adTds('PC小弹窗')+'</tr>';
+    tb+=`<tr><td class="l" style="border-left:5px solid ${col}">${PROD}</td>`+adTds(ch)+'</tr>';
+    if(ch==='PC弹窗推送') tb+=`<tr><td class="l" style="border-left:5px solid ${CH_COLOR['PC小弹窗']};color:#999">└ 小弹窗 650×300</td>`+adTds('PC小弹窗')+'</tr>';
     tb+='</table>';
-    card.innerHTML=`<h2>渠道：${ch} <span style="font-weight:400;color:#888;font-size:12px">本期 ${p.label} vs 上期 ${p.prevLabel}</span></h2>${tb}<div id="adch-${ci}" style="height:230px;margin-top:10px"></div>`;
+    card.innerHTML=`<h2 style="border-left:6px solid ${col};padding-left:8px;color:${col}">渠道：${ch} <span style="font-weight:400;color:#888;font-size:12px">本期 ${p.label} vs 上期 ${p.prevLabel}</span></h2>${tb}<div id="adch-${ci}" style="height:230px;margin-top:10px"></div>`;
     wrap.appendChild(card);
   });
   const nT=gran==='quarter'?8:(gran==='day'?14:12);
   CH_MAIN.forEach((ch,ci)=>{
     const pb=periodsBack(gran,refDate,nT);
     const series=pb.map(x=>{ const c=adsSum(x.p.s,x.p.e,ch); return ch==='普通广告'? c.acc : (c.show?+(c.acc/c.show*100).toFixed(2):null); });
+    const col=CH_COLOR[ch]||BLUE;
     opt('adch-'+ci,{ tooltip:{trigger:'axis'}, grid:{left:45,right:20,top:16,bottom:40},
       xAxis:{type:'category',data:pb.map(x=>shortLabel(gran,x.p)),axisLabel:{fontSize:9}},
       yAxis:{type:'value',name:(ch==='普通广告'?'点击人数':'CTR %')},
-      series:[{type:'line',smooth:true,data:series,itemStyle:{color:RED},areaStyle:{opacity:.08}}]});
+      series:[{type:'line',smooth:true,data:series,itemStyle:{color:col},areaStyle:{opacity:.08}}]});
   });
 }
 
@@ -287,8 +294,9 @@ function renderMaterial(){
     const rk=materialRank(ch,p,metric);
     if(!rk.top.length&&!rk.bottom.length) return;
     const used=M_LBL[rk.metric], note=(rk.metric!==metric)?`（该渠道无曝光，改按${used}）`:'';
-    topH+=`<div class="sub" style="margin:12px 0 6px;font-weight:600">${ch} · 高${used}前5${note}</div><div class="mcards">${rk.top.map(x=>matCard(x,rk.metric)).join('')||'<span style="color:#999">样本不足</span>'}</div>`;
-    botH+=`<div class="sub" style="margin:12px 0 6px;font-weight:600">${ch} · 低${used}前5</div><div class="mcards">${rk.bottom.map(x=>matCard(x,rk.metric)).join('')||'<span style="color:#999">样本不足</span>'}</div>`;
+    const col=CH_COLOR[ch]||BLUE;
+    topH+=`<div class="sub" style="margin:14px 0 6px;font-weight:700;border-left:6px solid ${col};padding-left:8px;color:${col}">${ch} · 高${used}前5${note}</div><div class="mcards">${rk.top.map(x=>matCard(x,rk.metric)).join('')||'<span style="color:#999">样本不足</span>'}</div>`;
+    botH+=`<div class="sub" style="margin:14px 0 6px;font-weight:700;border-left:6px solid ${col};padding-left:8px;color:${col}">${ch} · 低${used}前5</div><div class="mcards">${rk.bottom.map(x=>matCard(x,rk.metric)).join('')||'<span style="color:#999">样本不足</span>'}</div>`;
   });
   document.getElementById('matTop').innerHTML=topH||'<span style="color:#999">该期无足够素材数据</span>';
   document.getElementById('matBottom').innerHTML=botH;
@@ -315,12 +323,12 @@ function renderEvent(){
   const qxk=qiSum(p.s,p.e,'xk'), qxg=qiSum(p.s,p.e,'xg');
   const qxkp=qiSum(p.ps,p.pe,'xk'), qxgp=qiSum(p.ps,p.pe,'xg');
   const dAvg=(u,dd)=>(u/dd).toFixed(1);
-  const qrow=(name,c,cp)=>`<tr><td class="l">${name}</td><td>${c.n}</td><td>${c.use}</td><td>${dAvg(c.use,p.days)}</td>
+  const qrow=(name,c,cp,col)=>`<tr><td class="l" style="border-left:6px solid ${col};color:${col};font-weight:600">${name}</td><td>${c.n}</td><td>${c.use}</td><td>${dAvg(c.use,p.days)}</td>
      <td style="color:${diffColor(c.n-cp.n)}">${dfmt(c.n-cp.n,false)}</td>
      <td style="color:${diffColor(c.use-cp.use)}">${dfmt(c.use-cp.use,false)}</td></tr>`;
   let qh='<table><tr><th class="l">栏目</th><th>新增素材</th><th>引用次数</th><th>日均引用次数</th><th>新增环比</th><th>引用环比</th></tr>';
-  qh+=qrow('升级高端版（新开升级）', qxk, qxkp);
-  qh+=qrow('选股王', qxg, qxgp);
+  qh+=qrow('升级高端版（新开升级）', qxk, qxkp, '#C2185B');
+  qh+=qrow('选股王', qxg, qxgp, '#2C5F8A');
   qh+='</table>';
   document.getElementById('qiTable').innerHTML=qh;
   renderQiList('xk','qiXkList',p); renderQiList('xg','qiXgList',p);
