@@ -92,23 +92,31 @@ function renderAmount(){
   + card('本期合计', c.xk+c.xg, (c.xk+c.xg)-(pv.xk+pv.xg), `环比 ${p.prevLabel}`)
   + `<div class="kpi"><div class="t">新开升级占比</div><div class="v">${((c.xk/(c.xk+c.xg||1))*100).toFixed(1)}%</div><div class="d" style="color:#888">新开升级 / 合计</div></div>`;
 
-  // 趋势
+  // 趋势（按产品分开，避免杂糅）
   const n = gran==='day'?14:(gran==='quarter'?8:12);
   const pb = periodsBack(gran, refDate, n);
   const labels=pb.map(x=>shortLabel(gran,x.p));
+  const rot = labels.length>12?45:0;
   const xks=pb.map(x=>sumBI55(x.p.s,x.p.e).xk), xgs=pb.map(x=>sumBI55(x.p.s,x.p.e).xg);
-  opt('amtTrend',{ tooltip:{trigger:'axis'}, legend:{data:['新开升级','选股王'],top:0},
-    grid:{left:40,right:20,top:30,bottom:40}, xAxis:{type:'category',data:labels,axisLabel:{fontSize:10}},
-    yAxis:{type:'value'}, series:[
-      {name:'新开升级',type:'bar',data:xks,itemStyle:{color:'#c9ced6'}},
-      {name:'选股王',type:'line',data:xgs,itemStyle:{color:BLUE},smooth:true}]});
+  opt('amtTrendXk',{ tooltip:{trigger:'axis'}, grid:{left:40,right:20,top:24,bottom:48},
+    xAxis:{type:'category',data:labels,axisLabel:{fontSize:10,rotate:rot}},
+    yAxis:{type:'value',name:'新开升级'}, series:[{type:'bar',data:xks,itemStyle:{color:RED},label:{show:true,position:'top',fontSize:9}}]});
+  opt('amtTrendXg',{ tooltip:{trigger:'axis'}, grid:{left:40,right:20,top:24,bottom:48},
+    xAxis:{type:'category',data:labels,axisLabel:{fontSize:10,rotate:rot}},
+    yAxis:{type:'value',name:'选股王'}, series:[{type:'bar',data:xgs,itemStyle:{color:BLUE},label:{show:true,position:'top',fontSize:9}}]});
 
-  // 本期 vs 环比 vs 同比
-  opt('amtCmp',{ tooltip:{trigger:'axis'}, legend:{data:['新开升级','选股王'],top:0},
-    grid:{left:40,right:20,top:30,bottom:30}, xAxis:{type:'category',data:['本期','环比期','同比期']},
+  // 环比：本期 vs 环比期（单独一张，不与同比混）
+  opt('amtMom',{ tooltip:{trigger:'axis'}, legend:{data:['新开升级','选股王'],top:0},
+    grid:{left:40,right:20,top:30,bottom:30}, xAxis:{type:'category',data:['本期','环比期 '+p.prevLabel]},
     yAxis:{type:'value'}, series:[
-      {name:'新开升级',type:'bar',data:[c.xk,pv.xk,yo.xk],itemStyle:{color:RED}},
-      {name:'选股王',type:'bar',data:[c.xg,pv.xg,yo.xg],itemStyle:{color:BLUE}}]});
+      {name:'新开升级',type:'bar',data:[c.xk,pv.xk],itemStyle:{color:RED},label:{show:true,position:'top',fontSize:10}},
+      {name:'选股王',type:'bar',data:[c.xg,pv.xg],itemStyle:{color:BLUE},label:{show:true,position:'top',fontSize:10}}]});
+  // 同比：本期 vs 同比期（单独一张）
+  opt('amtYoy',{ tooltip:{trigger:'axis'}, legend:{data:['新开升级','选股王'],top:0},
+    grid:{left:40,right:20,top:30,bottom:30}, xAxis:{type:'category',data:['本期','同比期 '+p.yLabel]},
+    yAxis:{type:'value'}, series:[
+      {name:'新开升级',type:'bar',data:[c.xk,yo.xk],itemStyle:{color:RED},label:{show:true,position:'top',fontSize:10}},
+      {name:'选股王',type:'bar',data:[c.xg,yo.xg],itemStyle:{color:BLUE},label:{show:true,position:'top',fontSize:10}}]});
 
   // 端分布
   const dv=sumDev(p.s,p.e);
@@ -143,6 +151,19 @@ function renderTargets(p){
 }
 
 // ---------- 广告 ----------
+function chRow(g,ch,p,isSmall){
+  const c=adsSum(p.s,p.e,g,ch), pv=adsSum(p.ps,p.pe,g,ch);
+  const ctr=pct(c.acc,c.show), ctrp=pct(pv.acc,pv.show), bu=pct(c.mb,c.acc), bup=pct(pv.mb,pv.acc);
+  const cell=(v,d,isPct)=>`${v}<br><span style="font-size:11px;color:${diffColor(d)}">${dfmt(d,isPct)}</span>`;
+  return `<tr><td class="l" ${isSmall?'style="color:#999"':''}>${isSmall?'└ 小弹窗 650×300':g}</td>`
+    +`<td>${cell(c.show||'无数据', c.show-pv.show,false)}</td>`
+    +`<td>${cell(c.acc, c.acc-pv.acc,false)}</td>`
+    +`<td>${cell(ctr==null?'无数据':ctr.toFixed(2)+'%', (ctr!=null&&ctrp!=null)?ctr-ctrp:null,true)}</td>`
+    +`<td>${cell(c.mb, c.mb-pv.mb,false)}</td>`
+    +`<td>${cell(bu==null?'无数据':bu.toFixed(2)+'%', (bu!=null&&bup!=null)?bu-bup:null,true)}</td>`
+    +`<td>${cell(c.ord, c.ord-pv.ord,false)}</td>`
+    +`<td>${cell(c.deal, c.deal-pv.deal,false)}</td></tr>`;
+}
 function renderAd(){
   const gran=curGran(), p=period(gran,refDate);
   document.getElementById('adSub').textContent=`本期 ${p.label} vs 上期 ${p.prevLabel}（广告仅环比，不做同比）`;
@@ -166,17 +187,34 @@ function renderAd(){
   html+='</table>';
   document.getElementById('adTable').innerHTML=html;
 
-  // CTR 图（分组×渠道 本期）
-  const gsel=curGrp(); const gs = gsel==='全部'?['选股王','新开升级']:[gsel];
-  opt('adCtrChart',{ tooltip:{trigger:'axis'}, legend:{data:gs,top:0}, grid:{left:45,right:20,top:30,bottom:60},
-    xAxis:{type:'category',data:CHS.slice(0,4),axisLabel:{fontSize:10,interval:0}},
-    yAxis:{type:'value',name:'CTR %'}, series:gs.map((g,gi)=>({name:g,type:'bar',
-      data:CHS.slice(0,4).map(ch=>{const c=adsSum(p.s,p.e,g,ch);const v=pct(c.acc,c.show);return v==null?null:+v.toFixed(2);}),
-      itemStyle:{color:gi===0?RED:BLUE}}))});
-  // PC 拆分
-  opt('adPcChart',{ tooltip:{trigger:'axis'}, legend:{data:gs,top:0}, grid:{left:45,right:20,top:30,bottom:40},
-    xAxis:{type:'category',data:['PC大弹窗','PC小弹窗(650×300)']}, yAxis:{type:'value',name:'CTR %'},
-    series:gs.map((g,gi)=>({name:g,type:'bar',data:['PC弹窗推送','PC小弹窗'].map(ch=>{const c=adsSum(p.s,p.e,g,ch);const v=pct(c.acc,c.show);return v==null?null:+v.toFixed(2);}),itemStyle:{color:gi===0?RED:BLUE}}))});
+  // 分渠道独立明细块（每个渠道：自己的数据表 + 趋势图）
+  Object.keys(charts).forEach(k=>{ if(k.indexOf('adch-')===0){ charts[k].dispose(); delete charts[k]; } });
+  const CH_MAIN=['普通广告','APP弹窗广告','APP通知栏推送','PC弹窗推送'];
+  const wrap=document.getElementById('adChannels');
+  wrap.innerHTML='';
+  CH_MAIN.forEach((ch,ci)=>{
+    const card=document.createElement('div'); card.className='card';
+    let tb='<table><tr><th class="l">分组</th><th>曝光(去重)</th><th>点击人数</th><th>点击率CTR</th><th>点击购买</th><th>购买率</th><th>订单提交</th><th>成交(归因)</th></tr>';
+    for(const g of ['选股王','新开升级']){
+      tb+=chRow(g,ch,p,false);
+      if(ch==='PC弹窗推送') tb+=chRow(g,'PC小弹窗',p,true);
+    }
+    tb+='</table>';
+    card.innerHTML=`<h2>渠道：${ch} <span style="font-weight:400;color:#888;font-size:12px">本期 ${p.label} vs 上期 ${p.prevLabel}</span></h2>${tb}<div id="adch-${ci}" style="height:250px;margin-top:10px"></div>`;
+    wrap.appendChild(card);
+  });
+  // 各渠道趋势（按当前粒度，选股王/新开升级）
+  const nT=gran==='quarter'?8:(gran==='day'?14:12);
+  CH_MAIN.forEach((ch,ci)=>{
+    const pb=periodsBack(gran,refDate,nT);
+    const labels=pb.map(x=>shortLabel(gran,x.p));
+    const series=['选股王','新开升级'].map((g,gi)=>({name:g,type:'line',smooth:true,
+      data:pb.map(x=>{const c=adsSum(x.p.s,x.p.e,g,ch); if(ch==='普通广告') return c.acc; return c.show?+(c.acc/c.show*100).toFixed(2):null;}),
+      itemStyle:{color:gi===0?RED:BLUE}}));
+    opt('adch-'+ci,{ tooltip:{trigger:'axis'}, legend:{data:['选股王','新开升级'],top:0},
+      grid:{left:45,right:20,top:30,bottom:35}, xAxis:{type:'category',data:labels,axisLabel:{fontSize:10}},
+      yAxis:{type:'value',name:(ch==='普通广告'?'点击人数':'CTR %')}, series});
+  });
 }
 
 // ---------- 跳转链接 ----------

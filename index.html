@@ -82,8 +82,12 @@
   <section id="tab-amount" class="on">
     <div class="card"><h2>核心 KPI（本期 / 环比 / 同比）</h2><div class="kpis" id="kpis"></div></div>
     <div class="grid2">
-      <div class="card"><h2>单量趋势</h2><div id="amtTrend" style="height:300px"></div></div>
-      <div class="card"><h2>本期 vs 环比 vs 同比</h2><div id="amtCmp" style="height:300px"></div></div>
+      <div class="card"><h2>新开升级 · 单量趋势（按当前粒度）</h2><div id="amtTrendXk" style="height:280px"></div></div>
+      <div class="card"><h2>选股王 · 单量趋势（按当前粒度）</h2><div id="amtTrendXg" style="height:280px"></div></div>
+    </div>
+    <div class="grid2">
+      <div class="card"><h2>环比：本期 vs 环比期</h2><div id="amtMom" style="height:280px"></div></div>
+      <div class="card"><h2>同比：本期 vs 同比期</h2><div id="amtYoy" style="height:280px"></div></div>
     </div>
     <div class="grid2">
       <div class="card"><h2>端分布（本期）</h2><div id="devChart" style="height:280px"></div></div>
@@ -92,11 +96,8 @@
   </section>
 
   <section id="tab-ad">
-    <div class="card"><h2>分组 × 渠道 环比（变化数值，红涨绿跌）</h2><div class="sub" id="adSub"></div><div id="adTable"></div></div>
-    <div class="grid2">
-      <div class="card"><h2>各渠道 点击率 CTR（本期 vs 上期）</h2><div id="adCtrChart" style="height:300px"></div></div>
-      <div class="card"><h2>PC 弹窗拆分（大 vs 小 650×300）</h2><div id="adPcChart" style="height:300px"></div></div>
-    </div>
+    <div class="card"><h2>分组 × 渠道 环比总表（变化数值，红涨绿跌）</h2><div class="sub" id="adSub"></div><div id="adTable"></div></div>
+    <div id="adChannels"></div>
   </section>
 
   <section id="tab-link">
