@@ -16,6 +16,8 @@ const diffColor=d=>d>0?RED:(d<0?GREEN:'#444');
 const dfmt=(d,isPct)=>d==null?'—':((d>0?'+':'')+(isPct?d.toFixed(2)+'pp':d));
 const pct=(a,b)=>(b?a/b*100:null);
 const pk=()=>PROD==='选股王'?'xg':'xk';
+const ROLE={cur:'#E60025',prev:'#E08A00',old:'#c9ced6'};   // 本期/环比上期/更早
+function roleBars(vals){ const n=vals.length; return vals.map((v,i)=>({value:v,itemStyle:{color:i===n-1?ROLE.cur:(i===n-2?ROLE.prev:ROLE.old)}})); }
 
 // ---------- 时间粒度 ----------
 function period(gran,ref){
@@ -110,14 +112,17 @@ function renderHome(){
 
   // 单量趋势（近12周）
   const pb=periodsBack('week',refDate,12);
+  const hLbl=pb.map(x=>shortLabel('week',x.p)), hVal=pb.map(x=>sumBI55(x.p.s,x.p.e)[k]);
   opt('homeAmtTrend',{ tooltip:{trigger:'axis'}, grid:{left:40,right:20,top:20,bottom:45},
-    xAxis:{type:'category',data:pb.map(x=>shortLabel('week',x.p)),axisLabel:{fontSize:9,rotate:45}},
-    yAxis:{type:'value'}, series:[{type:'bar',data:pb.map(x=>sumBI55(x.p.s,x.p.e)[k]),itemStyle:{color:RED},label:{show:true,position:'top',fontSize:9}}]});
-  // 各渠道本周点击
-  const labels=['普通广告','APP弹窗','通知栏PUSH','PC弹窗'];
-  const vals=[adsSum(p.s,p.e,'普通广告').acc,adsSum(p.s,p.e,'APP弹窗广告').acc,adsSum(p.s,p.e,'APP通知栏推送').acc,adsSum(p.s,p.e,'PC弹窗推送').acc];
-  opt('homeAdChart',{ tooltip:{trigger:'axis'}, grid:{left:50,right:20,top:20,bottom:30},
-    xAxis:{type:'value'}, yAxis:{type:'category',data:labels}, series:[{type:'bar',data:vals,itemStyle:{color:BLUE},label:{show:true,position:'right',fontSize:10}}]});
+    xAxis:{type:'category',data:hLbl,axisLabel:{fontSize:9,rotate:45}},
+    yAxis:{type:'value'}, series:[{type:'bar',data:roleBars(hVal),label:{show:true,position:'top',fontSize:9}}]});
+  // 各渠道本周点击（按渠道配色）
+  const chKeys=['普通广告','APP弹窗广告','APP通知栏推送','PC弹窗推送'];
+  const labels=['普通广告','APP弹窗','PUSH(通知栏)','PC弹窗'];
+  const vals=chKeys.map(ch=>adsSum(p.s,p.e,ch).acc);
+  opt('homeAdChart',{ tooltip:{trigger:'axis'}, grid:{left:70,right:40,top:20,bottom:30},
+    xAxis:{type:'value'}, yAxis:{type:'category',data:labels},
+    series:[{type:'bar',data:vals.map((v,i)=>({value:v,itemStyle:{color:CH_COLOR[chKeys[i]]}})),label:{show:true,position:'right',fontSize:10}}]});
 }
 
 // ---------- 单量 ----------
@@ -137,13 +142,13 @@ function renderAmount(){
   const vals=pb.map(x=>sumBI55(x.p.s,x.p.e)[k]);
   opt('amtTrend',{ tooltip:{trigger:'axis'}, grid:{left:40,right:20,top:20,bottom:48},
     xAxis:{type:'category',data:labels,axisLabel:{fontSize:10,rotate:labels.length>12?45:0}},
-    yAxis:{type:'value'}, series:[{type:'bar',data:vals,itemStyle:{color:RED},label:{show:true,position:'top',fontSize:9}}]});
+    yAxis:{type:'value'}, series:[{type:'bar',data:roleBars(vals),label:{show:true,position:'top',fontSize:9}}]});
   opt('amtMom',{ tooltip:{trigger:'axis'}, grid:{left:40,right:20,top:20,bottom:30},
     xAxis:{type:'category',data:['本期','环比期']}, yAxis:{type:'value'},
-    series:[{type:'bar',data:[c,pv],itemStyle:{color:RED},label:{show:true,position:'top',fontSize:11}}]});
+    series:[{type:'bar',data:[{value:c,itemStyle:{color:ROLE.cur}},{value:pv,itemStyle:{color:ROLE.prev}}],label:{show:true,position:'top',fontSize:11}}]});
   opt('amtYoy',{ tooltip:{trigger:'axis'}, grid:{left:40,right:20,top:20,bottom:30},
     xAxis:{type:'category',data:['本期','同比期']}, yAxis:{type:'value'},
-    series:[{type:'bar',data:[c,yo],itemStyle:{color:BLUE},label:{show:true,position:'top',fontSize:11}}]});
+    series:[{type:'bar',data:[{value:c,itemStyle:{color:ROLE.cur}},{value:yo,itemStyle:{color:'#7A4FBF'}}],label:{show:true,position:'top',fontSize:11}}]});
 
   const dv=sumDev(p.s,p.e,k), devs=DATA.devices;
   opt('devChart',{ tooltip:{trigger:'axis'}, grid:{left:55,right:20,top:20,bottom:30},
@@ -206,11 +211,10 @@ function renderAd(){
   CH_MAIN.forEach((ch,ci)=>{
     const pb=periodsBack(gran,refDate,nT);
     const series=pb.map(x=>{ const c=adsSum(x.p.s,x.p.e,ch); return ch==='普通广告'? c.acc : (c.show?+(c.acc/c.show*100).toFixed(2):null); });
-    const col=CH_COLOR[ch]||BLUE;
     opt('adch-'+ci,{ tooltip:{trigger:'axis'}, grid:{left:45,right:20,top:16,bottom:40},
       xAxis:{type:'category',data:pb.map(x=>shortLabel(gran,x.p)),axisLabel:{fontSize:9}},
-      yAxis:{type:'value',name:(ch==='普通广告'?'点击人数':'CTR %')},
-      series:[{type:'line',smooth:true,data:series,itemStyle:{color:col},areaStyle:{opacity:.08}}]});
+      yAxis:{type:'value',name:(ch==='普通广告'?'点击人数':'CTR %(点击率)')},
+      series:[{type:'bar',data:roleBars(series),label:{show:true,position:'top',fontSize:8,formatter:p=>p.value==null?'':p.value}}]});
   });
 }
 
@@ -339,7 +343,7 @@ function renderEvent(){
   opt('qiChart',{ tooltip:{trigger:'axis'}, legend:{data:['升级高端版','选股王'],top:0}, grid:{left:40,right:20,top:30,bottom:40},
     xAxis:{type:'category',data:days.map(d=>d.slice(5)),axisLabel:{fontSize:9}},
     yAxis:{type:'value',name:'新增素材数'},
-    series:[{name:'升级高端版',type:'bar',data:qxkD,itemStyle:{color:RED}},{name:'选股王',type:'bar',data:qxgD,itemStyle:{color:BLUE}}]});
+    series:[{name:'升级高端版',type:'bar',data:qxkD,itemStyle:{color:'#C2185B'}},{name:'选股王',type:'bar',data:qxgD,itemStyle:{color:'#2C5F8A'}}]});
   // 彩蛋
   let h='<table><tr><th class="l">彩蛋档期</th><th class="l">力度</th><th>天数</th><th>新开升级单量</th><th>日均</th><th>选股王日均</th><th>较同月基线</th></tr>';
   DATA.caidan.forEach(c=>{ h+=`<tr><td class="l">${c.name}</td><td class="l">${c.desc}</td><td>${c.n}</td><td>${c.xk}</td><td>${c.xk_avg.toFixed(2)}</td><td>${c.xg_avg.toFixed(2)}</td><td style="color:${diffColor(c.diff)};font-weight:bold">${dfmt(c.diff,true)}</td></tr>`; });
