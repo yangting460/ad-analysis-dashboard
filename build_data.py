@@ -1,16 +1,21 @@
 # -*- coding: utf-8 -*-
-"""阶段2：支持 --refresh 拉真实数据；默认用本地缓存生成 data/dashboard.json。
+"""面板数据构建：BI报表55(单量) + 广告后台banner-stat(广告/链接/素材)。
 
 用法：
-  python build_data.py            # 用已有缓存(bi55_2025/2026, ctr_mom)生成面板数据
-  python build_data.py --refresh  # 先拉 BI报表55(问题ID898) + 广告后台banner-stat 真实数据，再生成
+  python build_data.py            # 用本地缓存快速生成
+  python build_data.py --refresh  # 真实拉 BI55 + banner-stat（按天入库）
 
-口径固化：
-  - 单量：BI报表55 全口径；新开升级按「结果产品」归类
-  - CTR = count_access_user / count_show_user；点击购买率 = count_main_button_user / count_access_user
-  - PC弹窗(bt=4) 剔除 650×300 小弹窗（pcid_dims.json 缓存尺寸，未知则实时测）
-  - 普通广告(bt=1) 不统计曝光 → 显示「无数据」
-  - 环比：本月1日~今日 vs 上月1日~上月同日（天数对等）
+输出 data/dashboard.json 关键结构：
+  bi55_daily        {date: {xk, xg}}                      单量(2025+2026 合并)
+  bi55_device_daily {date: {xk:{dev:cnt}, xg:{dev:cnt}}}  端分布
+  targets           {yearly:{xk,xg}, monthly:{"YYYY-MM":{xk,xg}}}   目标(targets.json)
+  ads_daily         {date: {group: {ch: {show,acc,mb,ord,deal}}}}  广告按天(便于日/周/月/季聚合)
+  ad_creatives      {img: {title,url}}                    素材元信息
+  ads_rows          [{d,g,t,i,show,acc,mb,ord}]           素材级明细(show>=MIN_SHOW)
+  caidan            [...]                                 彩蛋专项
+
+口径：CTR=count_access_user/count_show_user；点击购买率=count_main_button_user/count_access_user
+      PC弹窗(bt=4) 剔除650×300 -> ch="PC弹窗推送"；小弹窗单列 ch="PC小弹窗"
 """
 import json, os, sys, time
 from collections import Counter, defaultdict
@@ -21,13 +26,17 @@ from urllib.parse import urlencode
 SRC = r"D:\新建文件夹\workbuddy\工作PPT\两周周报_9_1_9_12"
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "data", "dashboard.json")
+TARGETS_FILE = os.path.join(HERE, "targets.json")
 PCID_FILE = os.path.join(SRC, "pcid_dims.json")
+RAW_DIR = os.path.join(SRC, "ads_raw")
 BI_TOKEN = open(r"D:/新建文件夹/workbuddy/工作PPT/后台导出/_token.txt", encoding="utf-8").read().strip()
 AD_TOKEN = open(r"C:/Users/admin/zt_token.txt", encoding="utf-8").read().strip()
 
 GROUPS = {"选股王": 37, "新开升级": 53}
 TYPES = {1: "普通广告", 2: "APP弹窗广告", 3: "APP通知栏推送", 4: "PC弹窗推送"}
-FIELDS = ["count_show_user", "count_access_user", "count_main_button_user"]
+CHANNELS = ["普通广告", "APP弹窗广告", "APP通知栏推送", "PC弹窗推送", "PC小弹窗"]
+DEVICES = ["Android", "iOS", "H5", "web", "soft"]
+MIN_SHOW = 100  # 素材明细只保留曝光>=100 的行，控制体积
 pcid = json.load(open(PCID_FILE, encoding="utf-8")) if os.path.exists(PCID_FILE) else {}
 
 
@@ -39,19 +48,18 @@ def classify(n):
 
 
 # ---------------- BI报表55 ----------------
-def load_bi55_local(fn, ymax=None):
+def load_bi55_rows(fn, ymax=None):
     path = os.path.join(SRC, fn)
     if not os.path.exists(path):
-        return None
+        return []
     d = json.load(open(path, encoding="utf-8"))
-    rows = d["data"]["rows"]
-    by = defaultdict(Counter)
-    for r in rows:
+    out = []
+    for r in d["data"]["rows"]:
         dd = r[3][:10]
         if ymax and dd > ymax:
             continue
-        by[dd][classify(r[0])] += 1
-    return by
+        out.append((dd, classify(r[0]), r[1]))
+    return out
 
 
 def refresh_bi55(year, end):
@@ -67,10 +75,10 @@ def refresh_bi55(year, end):
     fn = "bi55_%s.json" % year
     json.dump(data, open(os.path.join(SRC, fn), "w", encoding="utf-8"), ensure_ascii=False)
     print("  saved", fn, "rows", len(data["data"]["rows"]))
-    return load_bi55_local(fn)
+    return load_bi55_rows(fn)
 
 
-# ---------------- 广告后台 banner-stat ----------------
+# ---------------- 广告后台 ----------------
 def get_dim(url):
     if url in pcid:
         return pcid[url]
@@ -88,8 +96,7 @@ def get_dim(url):
 
 
 def is_small(url):
-    w, h = pcid.get(url, [-1, -1])
-    return (w, h) == (650, 300)
+    return tuple(pcid.get(url, [-1, -1])) == (650, 300)
 
 
 def ad_call(params):
@@ -117,73 +124,94 @@ def fetch_all(gid, bt, st, en):
     return rows
 
 
-def agg(rows):
-    s = {f: 0 for f in FIELDS}
-    for d in rows:
-        for f in FIELDS:
-            try:
-                s[f] += int(d.get(f) or 0)
-            except (TypeError, ValueError):
-                pass
-    return s
+def num(d, k):
+    try:
+        return int(d.get(k) or 0)
+    except (TypeError, ValueError):
+        return 0
 
 
-def refresh_banner_stat(cur_st, cur_en, prev_st, prev_en):
-    result = {}
+def refresh_ads(st, en):
+    ads_daily = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: Counter())))
+    creatives = {}
+    ads_rows = []
+    total = 0
+    os.makedirs(RAW_DIR, exist_ok=True)
+    force = "--force" in sys.argv
     for gname, gid in GROUPS.items():
-        result[gname] = {}
         for bt, tname in TYPES.items():
-            result[gname][tname] = {}
-            for tag, (st, en) in (("cur", (cur_st, cur_en)), ("prev", (prev_st, prev_en))):
-                rows = fetch_all(gid, bt, st, en)
+            fp = os.path.join(RAW_DIR, "%s_%d.json" % (gname, bt))
+            if os.path.exists(fp) and not force:
+                rows = json.load(open(fp, encoding="utf-8"))
+                print("  [cached] %s-%s 行%d" % (gname, tname, len(rows)))
+            else:
+                try:
+                    rows = fetch_all(gid, bt, st, en)
+                except Exception as e:
+                    print("  !%s-%s 拉取失败: %s（重跑续传）" % (gname, tname, e))
+                    continue
+                json.dump(rows, open(fp, "w", encoding="utf-8"), ensure_ascii=False)
+                print("  %s-%s 行%d (saved)" % (gname, tname, len(rows)))
+            total += len(rows)
+            for d in rows:
+                dd = (d.get("time_info") or "")[:10]
+                if not dd:
+                    continue
+                img = d.get("image") or ""
                 if bt == 4:
-                    for d in rows:
-                        if d.get("image") and d["image"] not in pcid:
-                            get_dim(d["image"])
-                    normal = [d for d in rows if not is_small(d.get("image", ""))]
-                    a = agg(normal)
+                    if img and img not in pcid:
+                        get_dim(img)
+                    ch = "PC小弹窗" if is_small(img) else "PC弹窗推送"
                 else:
-                    a = agg(rows)
-                result[gname][tname][tag] = a
-                print("  %s-%s[%s] 行%d 曝光=%d 点击=%d 点击购买=%d"
-                      % (gname, tname, tag, len(rows), a["count_show_user"],
-                         a["count_access_user"], a["count_main_button_user"]))
-                time.sleep(0.05)
+                    ch = tname
+                show, acc = num(d, "count_show_user"), num(d, "count_access_user")
+                mb, od = num(d, "count_main_button_user"), num(d, "count_ordered")
+                deal = num(d, "count_deal_user")
+                c = ads_daily[dd][gname][ch]
+                c["show"] += show; c["acc"] += acc; c["mb"] += mb; c["ord"] += od; c["deal"] += deal
+                if show >= MIN_SHOW or od > 0:
+                    if img:
+                        creatives[img] = {"title": d.get("banner_title") or "", "url": d.get("jump_desc") or ""}
+                    ads_rows.append({"d": dd, "g": gname, "t": ch, "i": img,
+                                     "show": show, "acc": acc, "mb": mb, "ord": od})
+            time.sleep(0.05)
     json.dump(pcid, open(PCID_FILE, "w", encoding="utf-8"), ensure_ascii=False)
-    return result
+    # 转普通 dict
+    ads = {}
+    for dd, gd in ads_daily.items():
+        ads[dd] = {}
+        for g, cd in gd.items():
+            ads[dd][g] = {ch: dict(v) for ch, v in cd.items()}
+    missing = [(g, bt) for g in GROUPS for bt in TYPES
+               if not os.path.exists(os.path.join(RAW_DIR, "%s_%d.json" % (g, bt)))]
+    print("  广告按天入库: 天数=%d 明细行=%d(原%d) | 缺失渠道=%d" % (len(ads), len(ads_rows), total, len(missing)))
+    return ads, creatives, ads_rows, missing
 
 
-# ---------------- 彩蛋（历史固化窗口）----------------
+# ---------------- 彩蛋 ----------------
 def count(by, sd, ed):
     c = Counter()
     cur = date(*map(int, sd.split('-')))
     b = date(*map(int, ed.split('-')))
     while cur <= b:
         cnt = by.get(cur.isoformat(), Counter())
-        c["新开升级"] += cnt["新开升级"]
-        c["选股王"] += cnt["选股王"]
+        c["新开升级"] += cnt["新开升级"]; c["选股王"] += cnt["选股王"]
         cur += timedelta(days=1)
     n = (b - date(*map(int, sd.split('-')))).days + 1
     return c, n
 
 
 def month_non(by, sd, ed, ymax=None):
-    m = sd[:7]
-    mo = int(m[5:7])
-    y = int(m[:4])
+    m = sd[:7]; mo = int(m[5:7]); y = int(m[:4])
     eom = date(y, mo, 28 if mo == 2 else 30 if mo in (4, 6, 9, 11) else 31)
     if ymax:
         eom = min(eom, date(*map(int, ymax.split('-'))))
-    c = Counter()
-    n = 0
-    cur = date(y, mo, 1)
+    c = Counter(); n = 0; cur = date(y, mo, 1)
     while cur <= eom:
         dd = cur.isoformat()
         if not (sd <= dd <= ed):
             cnt = by.get(dd, Counter())
-            c["新开升级"] += cnt["新开升级"]
-            c["选股王"] += cnt["选股王"]
-            n += 1
+            c["新开升级"] += cnt["新开升级"]; c["选股王"] += cnt["选股王"]; n += 1
         cur += timedelta(days=1)
     return c, n
 
@@ -198,99 +226,104 @@ def build_caidan(by25, by26, ymax):
     out = []
     for name, desc, sd, ed, by, ym in periods:
         if by is None:
-            out.append(dict(name=name, desc=desc, sd=sd, ed=ed, n=0,
-                            xk=0, xk_avg=0, base=0, diff=0, xg_avg=0, xg_diff=0, daily=[]))
+            out.append(dict(name=name, desc=desc, sd=sd, ed=ed, n=0, xk=0, xk_avg=0,
+                            base=0, diff=0, xg_avg=0, xg_diff=0, daily=[]))
             continue
         c, n = count(by, sd, ed)
         bc, bn = month_non(by, sd, ed, ym)
         xk_avg = c["新开升级"] / n
-        base = bc["新开升级"] / bn
-        xg_avg = c["选股王"] / n
-        xg_base = bc["选股王"] / bn
         cur = date(*map(int, sd.split('-')))
         b = date(*map(int, ed.split('-')))
         daily = []
         while cur <= b:
-            dd = cur.isoformat()
-            cnt = by.get(dd, Counter())
+            dd = cur.isoformat(); cnt = by.get(dd, Counter())
             daily.append({"d": dd[5:], "xk": cnt["新开升级"], "xg": cnt["选股王"]})
             cur += timedelta(days=1)
-        out.append(dict(name=name, desc=desc, sd=sd, ed=ed, n=n,
-                        xk=c["新开升级"], xk_avg=round(xk_avg, 2), base=round(base, 2),
-                        diff=round(xk_avg - base, 2),
-                        xg_avg=round(xg_avg, 2), xg_diff=round(xg_avg - xg_base, 2),
-                        daily=daily))
+        out.append(dict(name=name, desc=desc, sd=sd, ed=ed, n=n, xk=c["新开升级"],
+                        xk_avg=round(xk_avg, 2), base=round(bc["新开升级"] / bn, 2),
+                        diff=round(xk_avg - bc["新开升级"] / bn, 2),
+                        xg_avg=round(c["选股王"] / n, 2),
+                        xg_diff=round(c["选股王"] / n - bc["选股王"] / bn, 2), daily=daily))
     return out
+
+
+def load_targets():
+    if os.path.exists(TARGETS_FILE):
+        return json.load(open(TARGETS_FILE, encoding="utf-8"))
+    tpl = {"_note": "在此填单量目标；monthly 键为 YYYY-MM，缺省表示未配置",
+           "yearly": {"2026": {"xk": 0, "xg": 0}},
+           "monthly": {"2026-09": {"xk": 0, "xg": 0}}}
+    json.dump(tpl, open(TARGETS_FILE, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+    return tpl
 
 
 # ---------------- 主流程 ----------------
 def main():
     refresh = "--refresh" in sys.argv
     today = date.today()
+    ymax = today.isoformat()
 
-    print("== 载入 BI报表55 缓存 ==")
-    by25 = load_bi55_local("bi55_2025.json")
-    by26 = load_bi55_local("bi55_full_fresh.json", today.isoformat())
+    print("== BI报表55 ==")
+    rows = load_bi55_rows("bi55_2025.json") + load_bi55_rows("bi55_full_fresh.json", ymax)
     if refresh:
-        print("== 刷新 BI报表55 真实数据 ==")
-        by25 = refresh_bi55(2025, "2025-12-31")
-        by26 = refresh_bi55(2026, today.isoformat())
+        rows = refresh_bi55(2025, "2025-12-31") + refresh_bi55(2026, ymax)
 
-    bi55_daily = {}
-    for by in (by25 or {}, by26 or {}):
-        for dd, c in by.items():
-            bi55_daily[dd] = {"xk": c["新开升级"], "xg": c["选股王"]}
+    bi55_daily = defaultdict(lambda: {"xk": 0, "xg": 0})
+    dev_daily = defaultdict(lambda: {"xk": Counter(), "xg": Counter()})
+    GK = {"新开升级": "xk", "选股王": "xg"}
+    for dd, g, dev in rows:
+        k = GK[g]
+        bi55_daily[dd][k] += 1
+        dev_daily[dd][k][dev] += 1
+    bi55_daily = {k: dict(v) for k, v in bi55_daily.items()}
+    dev = {dd: {"xk": dict(v["xk"]), "xg": dict(v["xg"])} for dd, v in dev_daily.items()}
 
-    months = sorted(set(d[:7] for d in bi55_daily))
-    cur_m = months[-1]
-    cy, cm = map(int, cur_m.split('-'))
-    prev_m = "%d-%02d" % (cy - 1, 12) if cm == 1 else "%d-%02d" % (cy, cm - 1)
+    # 广告窗口：往前 5 个月（覆盖本季 + 上季，支持周/月/季环比）
+    y, m = today.year, today.month
+    sm = m - 5; sy = y
+    while sm <= 0:
+        sm += 12; sy -= 1
+    ads_st = "%d-%02d-01 00:00" % (sy, sm)
+    ads_en = today.strftime("%Y-%m-%d") + " 23:59"
 
-    # 分组×渠道环比
     if refresh:
-        print("== 刷新 广告后台 banner-stat 真实数据 ==")
-        cur_st = "%s-01 00:00" % cur_m
-        cur_en = today.strftime("%Y-%m-%d") + " 23:59"
-        if cm == 1:
-            pym, pd = cy - 1, 12
-        else:
-            pym, pd = cy, cm - 1
-        prev_st = "%d-%02d-01 00:00" % (pym, pd)
-        prev_en = "%d-%02d-%02d 23:59" % (pym, pd, today.day)
-        ctr = refresh_banner_stat(cur_st, cur_en, prev_st, prev_en)
-        ctr_periods = {"cur": cur_m, "prev": prev_m}
+        print("== banner-stat 真实拉取（%s ~ %s）==" % (ads_st, ads_en))
+        ads, creatives, ads_rows, missing = refresh_ads(ads_st, ads_en)
+        json.dump({"ads_daily": ads, "ad_creatives": creatives, "ads_rows": ads_rows},
+                  open(os.path.join(SRC, "ads_cache.json"), "w", encoding="utf-8"), ensure_ascii=False)
     else:
-        print("== 载入 banner-stat 缓存(ctr_mom.json) ==")
-        raw = json.load(open(os.path.join(SRC, "ctr_mom.json"), encoding="utf-8"))
-        # 兼容旧结构 sep/aug
-        if "_meta" in raw:
-            ctr = raw
-            ctr_periods = raw["_meta"]
+        cache = os.path.join(SRC, "ads_cache.json")
+        if os.path.exists(cache):
+            print("== 载入 banner-stat 缓存 ==")
+            c = json.load(open(cache, encoding="utf-8"))
+            ads, creatives, ads_rows = c["ads_daily"], c["ad_creatives"], c["ads_rows"]
         else:
-            ctr = {}
-            for g in GROUPS:
-                ctr[g] = {}
-                for ch in TYPES.values():
-                    ctr[g][ch] = {"cur": raw[g][ch]["9月"], "prev": raw[g][ch]["8月"]}
-            ctr_periods = {"cur": "2026-09", "prev": "2026-08"}
-    ctr["_meta"] = ctr_periods
+            print("== 无广告缓存，跑 --refresh 生成 ==")
+            ads, creatives, ads_rows = {}, {}, []
 
-    caidan = build_caidan(by25, by26, today.isoformat())
-
+    # 单量按天（含两年）取并集日期
     out = {
-        "updated": today.isoformat(),
-        "source": "BI报表55(问题ID898) + 广告后台banner-stat 实时/缓存",
-        "note": "CTR=点击用户/曝光用户；点击购买率=点击购买用户/点击用户；PC弹窗已剔除650×300小弹窗；普通广告无曝光显示无数据；环比=本月至今vs上月同期(天数对等)",
-        "kpi_periods": {"cur": cur_m, "prev": prev_m},
-        "ctr_periods": ctr_periods,
+        "updated": ymax,
+        "source": "BI报表55(问题ID898) + 广告后台banner-stat",
+        "note": "CTR=点击用户/曝光用户；点击购买率=点击购买用户/点击用户；PC弹窗已剔除650×300(小弹窗单列)；普通广告无曝光=无数据；周=周一到周日(可切滚动周)；单量可同比(2025有数据)，广告仅环比",
+        "channels": CHANNELS,
+        "devices": DEVICES,
         "bi55_daily": bi55_daily,
-        "caidan": caidan,
-        "ctr_mom": ctr,
+        "bi55_device_daily": dev,
+        "targets": load_targets(),
+        "ads_daily": ads,
+        "ad_creatives": creatives,
+        "ads_rows": ads_rows,
+        "caidan": build_caidan(
+            {d: Counter({"新开升级": v["xk"], "选股王": v["xg"]}) for d, v in bi55_daily.items() if d < "2026-01-01"},
+            {d: Counter({"新开升级": v["xk"], "选股王": v["xg"]}) for d, v in bi55_daily.items() if d >= "2026-01-01"},
+            ymax),
     }
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
-    json.dump(out, open(OUT, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
-    print("written", OUT, "| 天数:", len(bi55_daily), "| 环比本期:", cur_m, "上期:", prev_m,
-          "| 彩蛋档:", len(caidan))
+    json.dump(out, open(OUT, "w", encoding="utf-8"), ensure_ascii=False)
+    sz = os.path.getsize(OUT) / 1024
+    print("written %s | 单量天数=%d 广告天数=%d 素材行=%d | %.0f KB"
+          % (OUT, len(bi55_daily), len(ads), len(ads_rows), sz))
 
 
 if __name__ == "__main__":

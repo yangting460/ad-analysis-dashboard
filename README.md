@@ -5,18 +5,21 @@
 ## 目录结构
 ```
 index.html            # 单页面板
-js/app.js             # ECharts 渲染 + 交互
+js/app.js             # ECharts 渲染 + 交互 + 多粒度引擎
 data/dashboard.json   # 聚合数据（由 build_data.py 生成）
 build_data.py         # 本机拉数/聚合脚本
+targets.json          # 单量月度/年度目标（自行填写，用于达成率）
+push_api.py           # 发布到 GitHub（Git Data API）
 ```
 
-## 模块
-- ① 核心 KPI：本月新开升级 / 选股王 单量 + 环比(变化数值)
-- ② 分组×渠道 环比对比表（9月 vs 8月，变化数值，红涨绿跌，CTR=点击用户/曝光用户）
-- ③ 每日成交分布（可切年/月 + 彩蛋红区 + 工作日零单标注）
-- ④ 彩蛋活动专项（四档对照 + 同力度 YoY）
-- ⑤ 周末/工作日规律（双零周末 vs 工作日零单预警）
-- ⑥ 素材深挖（待接入 banner-stat 素材明细）
+## 模块（按 Tab）
+- **单量**：核心 KPI（本期 / 环比 / 同比，变化数值）+ 单量趋势 + 本期vs环比vs同比 + 端分布 + 目标达成
+- **广告**：分组×渠道 环比表（含 PC 大/小弹窗拆分，变化数值，红涨绿跌）+ 各渠道 CTR 对比 + PC 拆分图
+- **跳转链接**：按落地页归一聚合，购买率排行 + 明细表 + 三类问题识别（曝光大CTR低 / 有点击零订单 / 购买率偏低）
+- **素材**：各渠道 TOP5 / BOTTOM5（仅工作日、按 CTR、自适应最小曝光阈值，附广告图）
+- **活动/规律**：彩蛋专项（四档 + YoY）+ 彩蛋分布 + 周末/工作日规律与预警
+
+**时间粒度**：日 / 周(固定 周一~周日) / 周(滚动 最近7天) / 月 / 季；单量支持同比(2025有数据)，广告仅环比。
 
 ## 本地预览
 ```bash
@@ -34,8 +37,9 @@ python build_data.py
 python build_data.py --refresh
 ```
 - BI55 用 `后台导出/_token.txt` 的 JWT 签名直采；banner-stat 用 `C:/Users/admin/zt_token.txt` 的令牌。
-- 环比口径：本月 1 日~今日 vs 上月 1 日~上月同日（天数对等），自动取最新月份。
-- 刷新会自动更新 `data/dashboard.json`，随后运行 `python push_api.py` 即可发布到 GitHub Pages（见下）。
+- 广告按「每广告×每天」入库（近 6 个月），支持任意粒度聚合；PC 弹窗按尺寸拆「大弹窗 / 小弹窗(650×300)」。
+- **断点续传**：每个「分组×渠道」结果单独存 `两周周报_9_1_9_12/ads_raw/`，长任务中断后重跑会跳过已完成的。
+- 刷新会自动更新 `data/dashboard.json`，随后运行 `python push_api.py` 即可发布（见下）。
 
 ## 线上地址（已部署）
 **https://yangting460.github.io/ad-analysis-dashboard/**
@@ -50,8 +54,8 @@ python build_data.py --refresh
 python push_api.py
 ```
 > 说明：本机网络对 `github.com` 的 git 协议路径有 DPI 拦截，`git push` 走不通，
-> 因此用 `push_api.py` 走 GitHub REST API（`PUT /contents`）发布，效果等价。
-> `push_api.py` 已从 GCM 读取你的 GitHub 登录态（或设置环境变量 `GITHUB_TOKEN`），不含明文密钥，已被 `.gitignore` 排除。
+> 因此用 `push_api.py` 走 GitHub **Git Data API**（blob -> tree -> commit -> ref）发布，支持 >1MB 大文件。
+> `push_api.py` 从 GCM 读取你的 GitHub 登录态（或设置环境变量 `GITHUB_TOKEN`），不含明文密钥，已被 `.gitignore` 排除。
 
 ## 关于仓库可见性
 仓库为**公开**（GitHub 免费计划的私有仓库不支持 Pages）。面板数据均为**聚合业务指标**
@@ -62,4 +66,4 @@ python push_api.py
 - 单量：BI报表55（问题ID 898 新开发线上支付账号查询）全口径；新开升级按「结果产品」归类。
 - CTR = count_access_user / count_show_user；点击购买率 = count_main_button_user / count_access_user。
 - PC弹窗已剔除 650×300 小弹窗；普通广告不统计曝光 → 显示「无数据」。
-- 日均按自然日历天数；2026年9月数据截至 09-18（同月基线限制在数据范围内）。
+- 日均按自然日历天数；同月基线限制在数据范围内（无数据日不计入）。

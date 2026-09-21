@@ -1,102 +1,125 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>选股王/高端版 广告×成交 分析面板</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>选股王 / 高端版 · 广告×成交分析面板</title>
 <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
 <style>
-  :root{--red:#E60025;--green:#187a2e;--blue:#2C5F8A;--ink:#222;--gray:#888;--line:#e3e3e3;--bg:#f6f7f9;}
-  *{box-sizing:border-box;margin:0;padding:0;}
-  body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:var(--bg);color:var(--ink);}
-  header{background:#fff;border-bottom:3px solid var(--blue);padding:14px 22px;}
-  header h1{font-size:22px;}
-  header .meta{font-size:12px;color:var(--gray);margin-top:4px;}
-  nav{display:flex;flex-wrap:wrap;gap:8px;padding:10px 22px;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:10;}
-  nav a{font-size:13px;color:var(--blue);text-decoration:none;padding:4px 10px;border:1px solid var(--line);border-radius:14px;}
-  nav a:hover{background:var(--blue);color:#fff;}
-  .wrap{max-width:1280px;margin:0 auto;padding:18px 22px 60px;}
-  .card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin-bottom:20px;box-shadow:0 1px 3px rgba(0,0,0,.04);}
-  .card h2{font-size:17px;margin-bottom:12px;padding-left:9px;border-left:4px solid var(--blue);}
-  .card h2 small{font-size:12px;color:var(--gray);font-weight:normal;margin-left:8px;}
-  .kpis{display:flex;flex-wrap:wrap;gap:14px;}
-  .kpi{flex:1;min-width:180px;background:var(--bg);border-radius:8px;padding:14px 16px;}
-  .kpi .t{font-size:13px;color:var(--gray);}
-  .kpi .v{font-size:28px;font-weight:bold;margin:6px 0 2px;}
-  .kpi .d{font-size:13px;font-weight:bold;}
-  .red{color:var(--red);} .green{color:var(--green);}
-  table{border-collapse:collapse;width:100%;font-size:13px;}
-  th,td{border:1px solid var(--line);padding:7px 8px;text-align:center;}
-  th{background:var(--blue);color:#fff;font-weight:bold;}
-  td.l,th.l{text-align:left;}
-  tr:nth-child(even) td{background:#fafafa;}
-  .controls{margin-bottom:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
-  select{padding:5px 8px;font-size:13px;border:1px solid var(--line);border-radius:6px;}
-  .chart{width:100%;height:360px;}
-  .note{font-size:11px;color:var(--gray);margin-top:10px;line-height:1.6;}
-  .warn{background:#fff4f4;border:1px solid #f3c9c9;color:#a31515;padding:8px 12px;border-radius:6px;font-size:13px;margin-top:8px;}
-  .ok{color:var(--green);}
-  .placeholder{color:var(--gray);font-size:13px;padding:20px;text-align:center;border:1px dashed var(--line);border-radius:8px;}
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif; color:#222; background:#f5f6f8; }
+  header { background:#fff; padding:12px 18px; border-bottom:1px solid #e6e8ec; position:sticky; top:0; z-index:20; }
+  h1 { font-size:17px; margin:0 0 4px; }
+  #meta { font-size:11px; color:#888; margin-bottom:8px; }
+  .controls { display:flex; flex-wrap:wrap; gap:14px; align-items:center; font-size:13px; }
+  .controls label { color:#555; }
+  select, input[type=date] { font-size:13px; padding:3px 6px; border:1px solid #cfd4dc; border-radius:5px; background:#fff; }
+  nav.tabs { display:flex; gap:4px; background:#fff; padding:0 12px; border-bottom:1px solid #e6e8ec; position:sticky; top:96px; z-index:19; overflow-x:auto; }
+  nav.tabs button { border:0; background:none; padding:10px 14px; font-size:14px; color:#666; cursor:pointer; border-bottom:2px solid transparent; white-space:nowrap; }
+  nav.tabs button.on { color:#E60025; border-bottom-color:#E60025; font-weight:600; }
+  main { padding:16px; max-width:1400px; margin:0 auto; }
+  section { display:none; }
+  section.on { display:block; }
+  .card { background:#fff; border:1px solid #e6e8ec; border-radius:8px; padding:14px; margin-bottom:16px; }
+  .card h2 { font-size:14px; margin:0 0 10px; color:#333; font-weight:600; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  @media (max-width:900px){ .grid2{ grid-template-columns:1fr; } }
+  table { border-collapse:collapse; width:100%; font-size:12.5px; }
+  th,td { border:1px solid #eceef2; padding:5px 8px; text-align:center; }
+  th { background:#fafbfc; color:#555; font-weight:600; }
+  td.l, th.l { text-align:left; }
+  .kpis { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+  @media (max-width:800px){ .kpis{ grid-template-columns:repeat(2,1fr);} }
+  .kpi { background:#fff; border:1px solid #e6e8ec; border-radius:8px; padding:12px; }
+  .kpi .t { font-size:12px; color:#888; }
+  .kpi .v { font-size:26px; font-weight:700; margin:4px 0; }
+  .kpi .d { font-size:12px; }
+  .warn { background:#fdeef0; border:1px solid #f3c2ca; color:#a01526; padding:8px 12px; border-radius:6px; margin-top:8px; font-size:13px; }
+  .ok { background:#f1f8f2; border:1px solid #bfe0c5; color:#187a2e; padding:8px 12px; border-radius:6px; margin-top:8px; font-size:13px; }
+  .mcards { display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:10px; }
+  .mc { border:1px solid #eceef2; border-radius:8px; overflow:hidden; background:#fff; }
+  .mc img { width:100%; height:110px; object-fit:contain; background:#f7f8fa; display:block; }
+  .mc .bd { padding:7px 9px; font-size:12px; }
+  .mc .ti { color:#444; height:30px; overflow:hidden; margin-bottom:4px; }
+  .mc .row { display:flex; justify-content:space-between; color:#666; }
+  .mc .hi { color:#E60025; font-weight:700; }
+  .bar { height:8px; background:#eee; border-radius:4px; overflow:hidden; margin-top:4px; }
+  .bar > i { display:block; height:100%; background:#E60025; }
+  .sub { font-size:12px; color:#777; margin-bottom:6px; }
 </style>
 </head>
 <body>
 <header>
-  <h1>选股王 / 高端版 · 广告 × 成交 可视化分析面板</h1>
-  <div class="meta" id="meta">数据加载中…</div>
+  <h1>选股王 / 高端版 · 广告 × 成交 分析面板</h1>
+  <div id="meta">加载中…</div>
+  <div class="controls">
+    <label>粒度
+      <select id="gran">
+        <option value="day">日</option>
+        <option value="week" selected>周（固定 周一~周日）</option>
+        <option value="rweek">周（滚动 最近7天）</option>
+        <option value="month">月</option>
+        <option value="quarter">季</option>
+      </select>
+    </label>
+    <label>基准日 <input type="date" id="refDate"></label>
+    <label>分组
+      <select id="grp"><option>全部</option><option>选股王</option><option>新开升级</option></select>
+    </label>
+    <span id="periodLabel" style="color:#888"></span>
+  </div>
 </header>
-<nav>
-  <a href="#m1">① 核心KPI</a>
-  <a href="#m2">② 分组×渠道环比</a>
-  <a href="#m3">③ 每日成交分布</a>
-  <a href="#m4">④ 彩蛋活动专项</a>
-  <a href="#m5">⑤ 周末/工作日规律</a>
-  <a href="#m6">⑥ 素材深挖</a>
+
+<nav class="tabs" id="tabs">
+  <button data-t="amount" class="on">单量</button>
+  <button data-t="ad">广告</button>
+  <button data-t="link">跳转链接</button>
+  <button data-t="material">素材</button>
+  <button data-t="event">活动/规律</button>
 </nav>
-<div class="wrap">
 
-  <section class="card" id="m1">
-    <h2>① 核心 KPI <small>本月新开升级 / 选股王 单量 + 环比(变化数值)</small></h2>
-    <div class="kpis" id="kpis"></div>
-    <div class="note">单量口径：BI报表55（问题ID 898 新开发线上支付账号查询）全口径；新开升级按「结果产品」归类。</div>
-  </section>
-
-  <section class="card" id="m2">
-    <h2>② 分组 × 渠道 环比对比 <small>9月 vs 8月 · 变化数值(非变化率) · 红涨绿跌 · CTR=点击用户/曝光用户</small></h2>
-    <div id="ctrTable"></div>
-    <div class="note">PC弹窗已按固化口径剔除 650×300 小弹窗；普通广告不统计曝光→显示「无数据」；率类变化为百分点(pp)。</div>
-  </section>
-
-  <section class="card" id="m3">
-    <h2>③ 每日成交分布 <small>可切年/月 · 彩蛋红区标注 · 自动标工作日零单</small></h2>
-    <div class="controls">
-      <label>年份 <select id="y3"></select></label>
-      <label>月份 <select id="m3sel"></select></label>
+<main>
+  <section id="tab-amount" class="on">
+    <div class="card"><h2>核心 KPI（本期 / 环比 / 同比）</h2><div class="kpis" id="kpis"></div></div>
+    <div class="grid2">
+      <div class="card"><h2>单量趋势</h2><div id="amtTrend" style="height:300px"></div></div>
+      <div class="card"><h2>本期 vs 环比 vs 同比</h2><div id="amtCmp" style="height:300px"></div></div>
     </div>
-    <div id="chart3" class="chart"></div>
-    <div class="note">柱=新开升级每日单量；蓝线=选股王(右轴)；红区=该月彩蛋窗口；橙点=工作日零单预警。</div>
-  </section>
-
-  <section class="card" id="m4">
-    <h2>④ 彩蛋活动专项 <small>四档对照 + 同力度 YoY</small></h2>
-    <div id="caidanTable"></div>
-    <div class="controls" style="margin-top:14px;"><label>选择彩蛋档 <select id="caidanSel"></select></label></div>
-    <div id="chart4" class="chart"></div>
-  </section>
-
-  <section class="card" id="m5">
-    <h2>⑤ 周末 / 工作日规律 <small>双零周末 vs 工作日零单预警</small></h2>
-    <div class="controls">
-      <label>月份 <select id="m5sel"></select></label>
+    <div class="grid2">
+      <div class="card"><h2>端分布（本期）</h2><div id="devChart" style="height:280px"></div></div>
+      <div class="card"><h2>目标达成</h2><div id="targets"></div></div>
     </div>
-    <div id="m5out"></div>
   </section>
 
-  <section class="card" id="m6">
-    <h2>⑥ 素材深挖 <small>TOP/BOTTOM 点击率素材 + 落地页差异</small></h2>
-    <div class="placeholder">阶段1 待接入：后续由 build_data.py 接 banner-stat 素材明细后填充（优质/低效素材、落地页差异、时段效果）。</div>
+  <section id="tab-ad">
+    <div class="card"><h2>分组 × 渠道 环比（变化数值，红涨绿跌）</h2><div class="sub" id="adSub"></div><div id="adTable"></div></div>
+    <div class="grid2">
+      <div class="card"><h2>各渠道 点击率 CTR（本期 vs 上期）</h2><div id="adCtrChart" style="height:300px"></div></div>
+      <div class="card"><h2>PC 弹窗拆分（大 vs 小 650×300）</h2><div id="adPcChart" style="height:300px"></div></div>
+    </div>
   </section>
 
-</div>
+  <section id="tab-link">
+    <div class="card"><h2>跳转链接（落地页）效果 · 按点击购买率排序</h2><div class="sub" id="linkSub"></div><div id="linkChart" style="height:340px"></div></div>
+    <div class="card"><h2>链接明细与问题识别</h2><div id="linkTable"></div></div>
+  </section>
+
+  <section id="tab-material">
+    <div class="card"><h2>各渠道素材 TOP5 / BOTTOM5（阶段内 · 仅工作日 · 按点击率）</h2>
+      <div class="sub" id="matSub"></div>
+      <div id="matTop"></div>
+      <div style="height:14px"></div>
+      <div id="matBottom"></div>
+    </div>
+  </section>
+
+  <section id="tab-event">
+    <div class="card"><h2>彩蛋活动专项</h2><div id="caidanTable"></div></div>
+    <div class="card"><h2>彩蛋分布</h2><div id="caidanChart" style="height:280px"></div></div>
+    <div class="card"><h2>周末 / 工作日规律 · 异常预警</h2><div id="pattern"></div></div>
+  </section>
+</main>
+
 <script src="js/app.js"></script>
 </body>
 </html>
