@@ -396,7 +396,8 @@ function init(){
 }
 fetch('data/dashboard.json').then(r=>r.json()).then(d=>{
   DATA=d;
-  document.getElementById('meta').textContent=`数据源：${d.source}｜更新：${d.updated}｜${d.note}`;
+  document.getElementById('meta').textContent=`数据源：${d.source}｜${d.note}`;
+  document.getElementById('updatedBadge').textContent='数据更新于 '+d.updated;
   // 默认基准日=最近一个完整周（周日为周末）；避免周一打开时本周才刚开始
   let rd=parseD(d.updated); while(rd.getDay()!==0) rd=addD(rd,-1);
   refDate=rd;
