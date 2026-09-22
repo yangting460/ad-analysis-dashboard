@@ -55,14 +55,20 @@ python build_data.py --ads
 **https://yangting460.github.io/ad-analysis-dashboard/**
 任何电脑浏览器打开即可，无需安装。
 
-## 日常更新（本机）
+## 汇报前刷新（推荐：一条命令搞定）
 ```bash
-# 1) 刷新数据（真实拉数 / 或用缓存）
-python build_data.py --refresh
-
-# 2) 发布到 GitHub Pages（API 方式，无需 git push）
-python push_api.py
+cd 分析面板
+python refresh_all.py
 ```
+它会依次：① 拉最新数据（BI55 + 广告 + 企微素材）生成 `data/dashboard.json`；② **清理上一轮的中间缓存**（`ads_raw/`、`qiwei_raw/`、`*.log`），避免越占越多；③ 发布到 GitHub Pages。
+刷新完直接打开线上链接（或本地 `http://127.0.0.1:8099`）即可看到最新数据。
+
+> 手动分步（等价）：
+> ```bash
+> python build_data.py --refresh   # 拉数
+> python push_api.py               # 发布
+> ```
+> 只刷某一类：`python build_data.py --qiwei`（仅企微，广告用缓存）/ `--ads`（仅广告）。
 > 说明：本机网络对 `github.com` 的 git 协议路径有 DPI 拦截，`git push` 走不通，
 > 因此用 `push_api.py` 走 GitHub **Git Data API**（blob -> tree -> commit -> ref）发布，支持 >1MB 大文件。
 > `push_api.py` 从 GCM 读取你的 GitHub 登录态（或设置环境变量 `GITHUB_TOKEN`），不含明文密钥，已被 `.gitignore` 排除。
