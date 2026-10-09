@@ -33,7 +33,19 @@ QI_DIR = os.path.join(SRC, "qiwei_raw")
 QI_BASE = "https://gw.n8n8.cn/enterprisewechatAssistant/api/enterprisewechat/manage"
 QI_SORT = {"升级高端版": 1, "选股王": 4}  # 栏目 sort_id；升级高端版=新开升级
 QI_CREATOR = "杨婷"
-BI_TOKEN = open(r"D:/新建文件夹/workbuddy/工作PPT/后台导出/_token.txt", encoding="utf-8").read().strip()
+def _load_backend_token(*paths):
+    """后台用户 JWT：优先用仍在有效期内的那个（单量/广告同源，可互换）。"""
+    for p in paths:
+        try:
+            t = open(p, encoding="utf-8").read().strip()
+            if t:
+                return t
+        except FileNotFoundError:
+            pass
+    return ""
+# 单量(BI签名)与广告(banner-stat)同源：优先 zt_token.txt（曾于10/6过期后改用仍有效的此token）
+BI_TOKEN = _load_backend_token(r"C:/Users/admin/zt_token.txt",
+                               r"D:/新建文件夹/workbuddy/工作PPT/后台导出/_token.txt")
 AD_TOKEN = open(r"C:/Users/admin/zt_token.txt", encoding="utf-8").read().strip()
 
 GROUPS = {"选股王": 37, "新开升级": 53}
