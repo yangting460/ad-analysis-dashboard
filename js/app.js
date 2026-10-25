@@ -269,6 +269,7 @@ function renderLink(){
 
 // ---------- 素材 ----------
 function creativeKey(r){ return r.i||('T:'+((r.n||'')+'|'+r.t)); }
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const M_LBL={ctr:'点击率',acc:'点击人数',mb:'点击购买人数',ord:'订单提交数'};
 function materialRank(ch,p,metric){
   let m=metric;
@@ -296,10 +297,21 @@ function materialRank(ch,p,metric){
 }
 function matCard(x,metric){
   const meta=DATA.ad_creatives[x.i]||{};
-  const img=x.i?`<img src="${x.i}" loading="lazy" onerror="this.style.display='none'">`
-               :`<div class="noimg">🖼 无图素材</div>`;
+  let media, tiName;
+  if(x.i){
+    media=`<img src="${x.i}" loading="lazy" onerror="this.style.display='none'">`;
+    tiName=esc((meta.title||'').slice(0,24)||x.n||'（未命名素材）');
+  } else {
+    // 无图 = 文字广告：把文案（标题+描述）直接展示，代替占位图
+    const title=(x.n||'').trim(), desc=(x.c||'').trim();
+    media=`<div class="txtad">`
+        + (title?`<div class="ta-ti">${esc(title)}</div>`:'')
+        + (desc?`<div class="ta-desc">${esc(desc)}</div>`:`<div class="ta-desc muted">（文字广告·后台未填文案）</div>`)
+        + `</div>`;
+    tiName='📝 文字广告';
+  }
   const val=metric==='ctr'?(x.ctr==null?'—':x.ctr.toFixed(2)+'%'):(metric==='acc'?x.acc:metric==='mb'?x.mb:x.ord);
-  return `<div class="mc">${img}<div class="bd"><div class="ti">${((meta.title||'').slice(0,24)||x.n||'（后台未上传素材图）').slice(0,24)}</div>
+  return `<div class="mc">${media}<div class="bd"><div class="ti">${tiName}</div>
     <div class="row"><span>${M_LBL[metric]}</span><span class="hi">${val}</span></div>
     <div class="row"><span>曝光/点击</span><span>${x.show}/${x.acc}</span></div>
     <div class="row"><span>点击购买/订单</span><span>${x.mb}/${x.ord}</span></div></div></div>`; }

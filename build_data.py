@@ -209,13 +209,14 @@ def refresh_ads(st, en):
                 c = ads_daily[dd][gname][ch]
                 c["show"] += show; c["acc"] += acc; c["mb"] += mb; c["ord"] += od; c["deal"] += deal
                 if show >= MIN_SHOW or od > 0:
-                    if img:
-                        creatives[img] = {"title": d.get("banner_title") or "", "url": d.get("jump_desc") or ""}
                     row = {"d": dd, "g": gname, "t": ch, "i": img,
                            "show": show, "acc": acc, "mb": mb, "ord": od}
-                    if not img:
-                        # 无图素材：记录标题，避免前端把不同素材合并成一张卡
+                    if img:
+                        creatives[img] = {"title": d.get("banner_title") or "", "url": d.get("jump_desc") or ""}
+                    else:
+                        # 文字广告（无图）：标题 + 文案(描述) 落到 row，前端直接展示文案
                         row["n"] = d.get("banner_title") or ""
+                        row["c"] = (d.get("banner_desc") or "").replace("\r\n", "\n").strip()[:200]
                     ads_rows.append(row)
             time.sleep(0.05)
     json.dump(pcid, open(PCID_FILE, "w", encoding="utf-8"), ensure_ascii=False)
