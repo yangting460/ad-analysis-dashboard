@@ -211,8 +211,12 @@ def refresh_ads(st, en):
                 if show >= MIN_SHOW or od > 0:
                     if img:
                         creatives[img] = {"title": d.get("banner_title") or "", "url": d.get("jump_desc") or ""}
-                    ads_rows.append({"d": dd, "g": gname, "t": ch, "i": img,
-                                     "show": show, "acc": acc, "mb": mb, "ord": od})
+                    row = {"d": dd, "g": gname, "t": ch, "i": img,
+                           "show": show, "acc": acc, "mb": mb, "ord": od}
+                    if not img:
+                        # 无图素材：记录标题，避免前端把不同素材合并成一张卡
+                        row["n"] = d.get("banner_title") or ""
+                    ads_rows.append(row)
             time.sleep(0.05)
     json.dump(pcid, open(PCID_FILE, "w", encoding="utf-8"), ensure_ascii=False)
     # 转普通 dict

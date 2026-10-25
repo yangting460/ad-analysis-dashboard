@@ -268,7 +268,7 @@ function renderLink(){
 }
 
 // ---------- 素材 ----------
-function creativeKey(r){ return r.i||('T:'+r.t); }
+function creativeKey(r){ return r.i||('T:'+((r.n||'')+'|'+r.t)); }
 const M_LBL={ctr:'点击率',acc:'点击人数',mb:'点击购买人数',ord:'订单提交数'};
 function materialRank(ch,p,metric){
   let m=metric;
@@ -296,9 +296,10 @@ function materialRank(ch,p,metric){
 }
 function matCard(x,metric){
   const meta=DATA.ad_creatives[x.i]||{};
-  const img=x.i?`<img src="${x.i}" loading="lazy" onerror="this.style.display='none'">`:'';
+  const img=x.i?`<img src="${x.i}" loading="lazy" onerror="this.style.display='none'">`
+               :`<div class="noimg">🖼 无图素材</div>`;
   const val=metric==='ctr'?(x.ctr==null?'—':x.ctr.toFixed(2)+'%'):(metric==='acc'?x.acc:metric==='mb'?x.mb:x.ord);
-  return `<div class="mc">${img}<div class="bd"><div class="ti">${(meta.title||'—').slice(0,24)}</div>
+  return `<div class="mc">${img}<div class="bd"><div class="ti">${((meta.title||'').slice(0,24)||x.n||'（后台未上传素材图）').slice(0,24)}</div>
     <div class="row"><span>${M_LBL[metric]}</span><span class="hi">${val}</span></div>
     <div class="row"><span>曝光/点击</span><span>${x.show}/${x.acc}</span></div>
     <div class="row"><span>点击购买/订单</span><span>${x.mb}/${x.ord}</span></div></div></div>`; }
