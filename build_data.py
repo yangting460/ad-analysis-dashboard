@@ -43,10 +43,33 @@ def _load_backend_token(*paths):
         except FileNotFoundError:
             pass
     return ""
-# 单量(BI签名)与广告(banner-stat)同源：优先 zt_token.txt（曾于10/6过期后改用仍有效的此token）
-BI_TOKEN = _load_backend_token(r"C:/Users/admin/zt_token.txt",
-                               r"D:/新建文件夹/workbuddy/工作PPT/后台导出/_token.txt")
-AD_TOKEN = open(r"C:/Users/admin/zt_token.txt", encoding="utf-8").read().strip()
+
+
+def _load_op_token(*paths):
+    """operation_token：由浏览器 CDP 提取（exp≈2026-11-23），对 BI55/banner-stat/企微素材 同源通用。
+    _cookies.txt 形如 `operation_token=eyJ...`，此处兼容提取。"""
+    for p in paths:
+        try:
+            t = open(p, encoding="utf-8").read().strip()
+            if "operation_token=" in t:
+                t = t.split("operation_token=", 1)[1].strip().rstrip(";")
+            if t and len(t) > 20:
+                return t
+        except FileNotFoundError:
+            pass
+    return ""
+# 单量(BI签名)与广告(banner-stat)/企微素材 同源：zt_token 已于 2026-10-19 过期，
+# 统一改用 operation_token（CDP 提取，常年有效）。
+OP_TOKEN = _load_op_token(
+    os.path.join(HERE, "..", "_cookies.txt"),
+    r"D:/新建文件夹/workbuddy/工作PPT/_cookies.txt",
+    r"C:/Users/admin/operation_token.txt",
+)
+if not OP_TOKEN:
+    OP_TOKEN = _load_backend_token(r"C:/Users/admin/zt_token.txt",
+                                   r"D:/新建文件夹/workbuddy/工作PPT/后台导出/_token.txt")
+BI_TOKEN = OP_TOKEN
+AD_TOKEN = OP_TOKEN
 
 GROUPS = {"选股王": 37, "新开升级": 53}
 TYPES = {1: "普通广告", 2: "APP弹窗广告", 3: "APP通知栏推送", 4: "PC弹窗推送"}
