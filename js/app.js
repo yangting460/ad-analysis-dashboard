@@ -81,6 +81,14 @@ function homeRowsForCh(ch,p){
   out.push(['点击购买', a.mb, b.mb, false]);
   return out;
 }
+function adsSumM(s,e,chs){ let r={show:0,acc:0,mb:0,ord:0,deal:0}; chs.forEach(ch=>{const x=adsSum(s,e,ch); r.show+=x.show;r.acc+=x.acc;r.mb+=x.mb;r.ord+=x.ord;r.deal+=x.deal;}); return r; }
+function homeRowsForChs(chs,p){
+  const a=adsSumM(p.s,p.e,chs), b=adsSumM(p.ps,p.pe,chs);
+  const out=[['曝光', a.show, b.show, false],['点击人数', a.acc, b.acc, false]];
+  if(a.show||b.show){ out.push(['点击率CTR', (a.show?a.acc/a.show*100:null), (b.show?b.acc/b.show*100:null), true]); }
+  out.push(['点击购买', a.mb, b.mb, false]);
+  return out;
+}
 function renderHome(){
   const p=period('week',refDate), k=pk();
   document.getElementById('homeSub').innerHTML=`产品：<b class="prodName">${PROD}</b> ｜ 本周 <b>${p.label}</b> vs 上周 <b>${p.prevLabel}</b>（固定周·周一~周日）`;
@@ -89,7 +97,7 @@ function renderHome(){
   const items=[
     {t:'单量', cur:c[k], prev:pv[k], color:RED},
     {t:'APP弹窗 点击', cur:adsSum(p.s,p.e,'APP弹窗广告').acc, prev:adsSum(p.ps,p.pe,'APP弹窗广告').acc, color:CH_COLOR['APP弹窗广告']},
-    {t:'PC弹窗 点击', cur:adsSum(p.s,p.e,'PC弹窗推送').acc, prev:adsSum(p.ps,p.pe,'PC弹窗推送').acc, color:CH_COLOR['PC弹窗推送']},
+    {t:'PC弹窗 点击', cur:adsSumM(p.s,p.e,['PC弹窗推送','PC小弹窗']).acc, prev:adsSumM(p.ps,p.pe,['PC弹窗推送','PC小弹窗']).acc, color:CH_COLOR['PC弹窗推送']},
     {t:'普通广告 点击', cur:adsSum(p.s,p.e,'普通广告').acc, prev:adsSum(p.ps,p.pe,'普通广告').acc, color:CH_COLOR['普通广告']},
     {t:'PUSH 点击', cur:adsSum(p.s,p.e,'APP通知栏推送').acc, prev:adsSum(p.ps,p.pe,'APP通知栏推送').acc, color:CH_COLOR['APP通知栏推送']},
     {t:'企微素材 新增', cur:q.n, prev:qp.n, color:GREEN},
@@ -103,7 +111,7 @@ function renderHome(){
   const groups=[
     {name:'单量', color:RED, rows:[['单量', c[k], pv[k], false]]},
     {name:'APP弹窗', color:CH_COLOR['APP弹窗广告'], rows:homeRowsForCh('APP弹窗广告',p)},
-    {name:'PC弹窗（含小弹窗）', color:CH_COLOR['PC弹窗推送'], rows:homeRowsForCh('PC弹窗推送',p)},
+    {name:'PC弹窗（含小弹窗）', color:CH_COLOR['PC弹窗推送'], rows:homeRowsForChs(['PC弹窗推送','PC小弹窗'],p)},
     {name:'PUSH（APP通知栏推送）', color:CH_COLOR['APP通知栏推送'], rows:homeRowsForCh('APP通知栏推送',p)},
     {name:'普通广告（无曝光）', color:CH_COLOR['普通广告'], rows:homeRowsForCh('普通广告',p)},
     {name:'企微素材（杨婷）', color:GREEN, rows:[['新增条数', q.n, qp.n, false],['使用次数', q.use, qp.use, false]]},
