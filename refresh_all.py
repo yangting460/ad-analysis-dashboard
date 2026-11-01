@@ -36,7 +36,7 @@ def clean():
 
 
 def main():
-    run(["build_data.py", "--refresh"])
+    run(["build_data.py", "--refresh", "--force"])
     run(["push_api.py"])
     print("\n== 清理中间缓存 ==")
     r = clean()
