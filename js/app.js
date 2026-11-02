@@ -222,7 +222,7 @@ function renderAd(){
     const card=document.createElement('div'); card.className='card'; card.style.borderTop=`3px solid ${col}`;
     let tb='<table><tr><th class="l">项目</th><th>曝光</th><th>点击人数</th><th>点击率CTR</th><th>点击购买</th><th>购买率</th><th>订单提交</th><th>成交(归因)</th></tr>';
     tb+=`<tr><td class="l" style="border-left:5px solid ${col}">${PROD}</td>`+adTds(ch)+'</tr>';
-    if(ch==='PC弹窗推送') tb+=`<tr><td class="l" style="border-left:5px solid ${CH_COLOR['PC小弹窗']};color:#999">└ 小弹窗 650×300</td>`+adTds('PC小弹窗')+'</tr>';
+    if(ch==='PC弹窗推送') tb+=`<tr><td class="l" style="border-left:5px solid ${CH_COLOR['PC小弹窗']};color:#999">└ 小弹窗（650×300 / 783×396 等非标）</td>`+adTds('PC小弹窗')+'</tr>';
     tb+='</table>';
     card.innerHTML=`<h2 style="border-left:6px solid ${col};padding-left:8px;color:${col}">渠道：${ch} <span style="font-weight:400;color:#888;font-size:12px">本期 ${p.label} vs 上期 ${p.prevLabel}</span></h2>${tb}<div id="adch-${ci}" style="height:230px;margin-top:10px"></div>`;
     wrap.appendChild(card);

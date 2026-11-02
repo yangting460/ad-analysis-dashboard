@@ -134,8 +134,13 @@ def get_dim(url):
     return [w, h]
 
 
+# 小弹窗家族：标准小弹窗 650x300，以及业务侧确认为"小弹窗"的非标尺寸 783x396 / 690x220
+# 仅 650x550 视为大弹窗；其余非标尺寸（含尺寸缺失）默认归大弹窗，避免漏算
+SMALL_DIMS = {(650, 300), (783, 396), (690, 220)}
+
+
 def is_small(url):
-    return tuple(pcid.get(url, [-1, -1])) == (650, 300)
+    return tuple(pcid.get(url, [-1, -1])) in SMALL_DIMS
 
 
 def ad_call(params):
