@@ -90,8 +90,12 @@ function homeRowsForChs(chs,p){
   return out;
 }
 function renderHome(){
-  const p=period('week',refDate), k=pk();
-  document.getElementById('homeSub').innerHTML=`产品：<b class="prodName">${PROD}</b> ｜ 本周 <b>${p.label}</b> vs 上周 <b>${p.prevLabel}</b>（固定周·周一~周日）`;
+  const gran=curGran(), p=period(gran,refDate), k=pk();
+  // 各粒度的称呼
+  const UN={day:['今日','昨日','单日'],week:['本周','上周','固定周·周一~周日'],rweek:['本滚动周','上滚动周','滚动7天'],month:['本月','上月','自然月'],quarter:['本季','上季','自然季']}[gran]||['本期','上期',''];
+  const UC={day:'日',week:'周',rweek:'滚动周',month:'月',quarter:'季'}[gran]||'期';
+  document.getElementById('homeSub').innerHTML=`产品：<b class="prodName">${PROD}</b> ｜ ${UN[0]} <b>${p.label}</b> vs ${UN[1]} <b>${p.prevLabel}</b>（${UN[2]}）`;
+  document.getElementById('homeTableTitle').textContent=`${UN[0]} vs ${UN[1]} · 明细`;
   const c=sumBI55(p.s,p.e), pv=sumBI55(p.ps,p.pe);
   const q=qiSum(p.s,p.e,k), qp=qiSum(p.ps,p.pe,k);
   const items=[
@@ -105,7 +109,7 @@ function renderHome(){
   document.getElementById('homeKpis').innerHTML=items.map(x=>{
     const d=x.cur-x.prev;
     return `<div class="kpi" style="border-top:3px solid ${x.color}"><div class="t">${x.t}</div><div class="v">${x.cur}</div>
-      <div class="d" style="color:${diffColor(d)}">变化 ${dfmt(d,false)} <span style="color:#999">上周 ${x.prev}</span></div></div>`;
+      <div class="d" style="color:${diffColor(d)}">变化 ${dfmt(d,false)} <span style="color:#999">${UN[1]} ${x.prev}</span></div></div>`;
   }).join('');
 
   const groups=[
@@ -116,7 +120,7 @@ function renderHome(){
     {name:'普通广告（无曝光）', color:CH_COLOR['普通广告'], rows:homeRowsForCh('普通广告',p)},
     {name:'企微素材（杨婷）', color:GREEN, rows:[['新增条数', q.n, qp.n, false],['使用次数', q.use, qp.use, false]]},
   ];
-  let h='<table><tr><th class="l">指标</th><th>本周</th><th>上周</th><th>变化</th></tr>';
+  let h=`<table><tr><th class="l">指标</th><th>${UN[0]}</th><th>${UN[1]}</th><th>变化</th></tr>`;
   groups.forEach(g=>{
     h+=`<tr><td colspan="4" class="l" style="background:${g.color}18;color:${g.color};font-weight:700;border-left:6px solid ${g.color}">${g.name}</td></tr>`;
     g.rows.forEach(r=>{
@@ -130,13 +134,16 @@ function renderHome(){
   h+='</table>';
   document.getElementById('homeTable').innerHTML=h;
 
-  // 单量趋势（近12周）
-  const pb=periodsBack('week',refDate,12);
-  const hLbl=pb.map(x=>shortLabel('week',x.p)), hVal=pb.map(x=>sumBI55(x.p.s,x.p.e)[k]);
+  // 单量趋势（跟随粒度）
+  const nT=gran==='day'?14:12;
+  const pb=periodsBack(gran,refDate,nT);
+  document.getElementById('homeTrendTitle').textContent=`单量趋势（近 ${nT} 个${UC}）`;
+  const hLbl=pb.map(x=>shortLabel(gran,x.p)), hVal=pb.map(x=>sumBI55(x.p.s,x.p.e)[k]);
   opt('homeAmtTrend',{ tooltip:{trigger:'axis'}, grid:{left:40,right:20,top:30,bottom:45},
     xAxis:{type:'category',data:hLbl,axisLabel:{fontSize:9,rotate:45}},
     yAxis:{type:'value'}, series:[{type:'bar',data:roleBars(hVal),label:{show:true,position:'top',fontSize:9},markArea:roleMarkArea(hLbl)}]});
-  // 各渠道本周点击（按渠道配色）
+  // 各渠道本期点击（按渠道配色）
+  document.getElementById('homeAdTitle').textContent=`各渠道 ${UN[0]}点击 / CTR`;
   const chKeys=['普通广告','APP弹窗广告','APP通知栏推送','PC弹窗推送'];
   const labels=['普通广告','APP弹窗','PUSH(通知栏)','PC弹窗'];
   const vals=chKeys.map(ch=>adsSum(p.s,p.e,ch).acc);
