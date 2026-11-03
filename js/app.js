@@ -377,12 +377,12 @@ function renderEvent(){
   qh+='</table>';
   document.getElementById('qiTable').innerHTML=qh;
   renderQiList('xk','qiXkList',p); renderQiList('xg','qiXgList',p);
-  // 企微每日新增（近30天）
-  const days=[]; for(let i=29;i>=0;i--){ days.push(fmtD(addD(refDate,-i))); }
-  const qxkD=days.map(d=>((DATA.qiwei_daily||{})[d]||{}).xk?DATA.qiwei_daily[d].xk.n:0);
-  const qxgD=days.map(d=>((DATA.qiwei_daily||{})[d]||{}).xg?DATA.qiwei_daily[d].xg.n:0);
+  // 企微每日新增（跟随当前期间 p.s~p.e）
+  const qDays=[]; { let d=p.s; while(d<=p.e){ qDays.push(d); d=fmtD(addD(parseD(d),1)); } }
+  const qxkD=qDays.map(d=>((DATA.qiwei_daily||{})[d]||{}).xk?DATA.qiwei_daily[d].xk.n:0);
+  const qxgD=qDays.map(d=>((DATA.qiwei_daily||{})[d]||{}).xg?DATA.qiwei_daily[d].xg.n:0);
   opt('qiChart',{ tooltip:{trigger:'axis'}, legend:{data:['升级高端版','选股王'],top:0}, grid:{left:40,right:20,top:30,bottom:40},
-    xAxis:{type:'category',data:days.map(d=>d.slice(5)),axisLabel:{fontSize:9}},
+    xAxis:{type:'category',data:qDays.map(d=>d.slice(5)),axisLabel:{fontSize:9}},
     yAxis:{type:'value',name:'新增素材数'},
     series:[{name:'升级高端版',type:'bar',data:qxkD,itemStyle:{color:'#C2185B'}},{name:'选股王',type:'bar',data:qxgD,itemStyle:{color:'#2C5F8A'}}]});
   // 彩蛋
